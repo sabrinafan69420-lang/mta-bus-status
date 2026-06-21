@@ -300,16 +300,65 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes }) {
         el.addEventListener("mouseenter", () => {
           el.style.boxShadow = `0 0 0 3px ${ROUTE_COLORS[route]}80`;
           el.style.opacity = "1";
-          if (popupRef.current) popupRef.current.remove();
-          popupRef.current = new mapboxgl.Popup({ offset: 10, closeButton: false, maxWidth: "220px" })
-            .setLngLat([stop.lon, stop.lat])
-            .setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${route}</span></div>`)
-            .addTo(map);
         });
         el.addEventListener("mouseleave", () => {
           el.style.boxShadow = "none";
           el.style.opacity = "0.7";
+        });
+
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
           if (popupRef.current) popupRef.current.remove();
+
+          const popup = new mapboxgl.Popup({ offset: 10, maxWidth: "280px", className: "stop-click-popup" })
+            .setLngLat([stop.lon, stop.lat])
+            .setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${route}</span><div class="stop-arrivals-loading"><div class="spinner-sm"></div>Loading arrivals...</div></div>`)
+            .addTo(map);
+          popupRef.current = popup;
+
+          fetch(`/api/arrivals/${stop.id}?route=${route}`)
+            .then((r) => r.json())
+            .then((data) => {
+              const delivery = data?.Siri?.ServiceDelivery?.StopMonitoringDelivery;
+              const mon = Array.isArray(delivery) ? delivery[0] : delivery;
+              const visits = mon?.MonitoredStopVisit || [];
+
+              const arrivals = visits.map((v) => {
+                const mvj = v.MonitoredVehicleJourney;
+                const call = mvj?.MonitoredCall;
+                if (!call) return null;
+                const arrRoute = mvj.LineRef?.replace("MTA NYCT_", "").replace("MTA_", "");
+                const dir = mvj.DirectionRef === "0" ? "Outbound" : "Inbound";
+                const dest = Array.isArray(mvj.DestinationName) ? mvj.DestinationName[0] : mvj.DestinationName || "?";
+                const arrival = call.ExpectedArrivalTime || call.AimedArrivalTime;
+                const mins = arrival ? Math.max(0, Math.round((new Date(arrival) - new Date()) / 60000)) : null;
+                const stopsAway = call.NumberOfStopsAway ?? null;
+                const delay = call.Extensions?.Deviation?.Delay || 0;
+                return { route: arrRoute, direction: dir, destination: dest, minutes: mins, stopsAway, delay };
+              }).filter(Boolean);
+
+              if (!popup.isOpen()) return;
+
+              const arrivalsHtml = arrivals.length === 0
+                ? `<div class="stop-no-arrivals">No upcoming arrivals</div>`
+                : arrivals.map((a) => {
+                    const minsClass = a.minutes <= 1 ? "arriving" : a.minutes <= 5 ? "soon" : "";
+                    const minsLabel = a.minutes === 0 ? "Now" : a.minutes;
+                    return `<div class="stop-arrival-row">
+                      <span class="stop-arrival-mins ${minsClass}">${minsLabel}${a.minutes > 0 ? '<span class="stop-arrival-unit">min</span>' : ''}</span>
+                      <span class="stop-arrival-dest">${a.destination}</span>
+                      <span class="stop-arrival-dir">${a.direction}</span>
+                      ${a.stopsAway != null ? `<span class="stop-arrival-stops">${a.stopsAway} stops</span>` : ''}
+                      ${a.delay > 30 ? `<span class="stop-arrival-delay">+${Math.round(a.delay / 60)}m</span>` : ''}
+                    </div>`;
+                  }).join("");
+
+              popup.setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${route}</span><div class="stop-arrivals">${arrivalsHtml}</div></div>`);
+            })
+            .catch(() => {
+              if (!popup.isOpen()) return;
+              popup.setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${route}</span><div class="stop-arrivals"><div class="stop-no-arrivals">Failed to load arrivals</div></div></div>`);
+            });
         });
 
         const marker = new mapboxgl.Marker(el)
