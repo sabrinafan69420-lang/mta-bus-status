@@ -1,7 +1,11 @@
 import { DEFAULT_ROUTES, cors, fetchJSON, SIRI_BASE, API_KEY, routeApiId } from "./lib.js";
 
-function stripRoutePrefix(s) {
-  return s.replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "").replace(/\+$/, "");
+function stripRoutePrefix(s, originalRoute) {
+  let clean = s.replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "").replace(/\+$/, "");
+  if (originalRoute && originalRoute.toUpperCase().endsWith("-SBS") && !clean.toUpperCase().endsWith("-SBS")) {
+    clean += "-SBS";
+  }
+  return clean;
 }
 
 async function fetchVehicleMonitoring(lineRef) {
@@ -34,7 +38,7 @@ export default async function handler(req, res) {
           const mc = mvj.MonitoredCall;
           const nextStop = mc ? { stopId: (mc.StopPointRef || "").replace("MTA_", ""), distance: mc.Extensions?.Distances?.PresentableDistance || null, stopsAway: mc.Extensions?.Distances?.StopsFromCall ?? null } : null;
           return {
-            id: vehicleNum, route: stripRoutePrefix(mvj.LineRef || "") || route,
+            id: vehicleNum, route: stripRoutePrefix(mvj.LineRef || "", route) || route,
             direction: mvj.DirectionRef === "0" ? "Outbound" : "Inbound",
             destination: Array.isArray(mvj.DestinationName) ? mvj.DestinationName[0] : mvj.DestinationName || "",
             lat: mvj.VehicleLocation?.Latitude, lon: mvj.VehicleLocation?.Longitude,

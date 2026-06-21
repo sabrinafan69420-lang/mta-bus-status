@@ -1,7 +1,11 @@
 import { FAVORITES, cors, fetchJSON, SIRI_BASE, API_KEY, routeApiId, oneBusAwayId } from "./lib.js";
 
-function stripRoutePrefix(s) {
-  return s.replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "");
+function stripRoutePrefix(s, originalRoute) {
+  let clean = s.replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "");
+  if (originalRoute && originalRoute.toUpperCase().endsWith("-SBS") && !clean.toUpperCase().endsWith("-SBS")) {
+    clean += "-SBS";
+  }
+  return clean;
 }
 
 async function fetchArrivals(stopId, lineRef) {
