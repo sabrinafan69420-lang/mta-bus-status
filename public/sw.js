@@ -1,21 +1,11 @@
-const CACHE_NAME = "mta-bus-v1";
-const STATIC_ASSETS = [
-  "/",
-  "/index.html",
-  "/favicon.svg",
-];
+const CACHE_NAME = "mta-bus-v2";
 
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
-  self.skipWaiting();
-});
+self.addEventListener("install", () => self.skipWaiting());
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(keys.map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
@@ -23,10 +13,10 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
+  if (request.method !== "GET") return;
   const url = new URL(request.url);
 
-  if (request.method !== "GET") return;
-
+  // API: network first, cache fallback
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(
       fetch(request)
@@ -40,6 +30,35 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Static assets (hashed JS/CSS): network first, cache fallback
+  if (url.pathname.startsWith("/assets/")) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // HTML: network first (always get latest index.html)
+  if (request.headers.get("accept")?.includes("text/html")) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Everything else: stale while revalidate
   event.respondWith(
     caches.match(request).then((cached) => {
       const fetched = fetch(request).then((response) => {
