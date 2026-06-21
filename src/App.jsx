@@ -340,7 +340,7 @@ function busPopupHtml(v, color, routeColors) {
         <div class="bus-popup-stop ${i === 0 ? "next" : ""}">
           <span class="bus-popup-stop-num">${i + 1}</span>
           <span class="bus-popup-stop-name">${s.name}</span>
-          <span class="bus-popup-stop-dist">${s.distance || (s.stopsAway != null ? s.stopsAway + " stops" : "\u2014")}</span>
+          <span class="bus-popup-stop-dist">${s.distance || (s.stopsAway != null ? s.stopsAway + " stops" : (s.metersAway != null ? Math.round(s.metersAway) + "m" : "\u2014"))}</span>
         </div>
       `).join("")}
     </div>` : "";

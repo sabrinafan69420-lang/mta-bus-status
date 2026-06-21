@@ -27,7 +27,9 @@ export default async function handler(req, res) {
           const onwardCalls = (mvj.OnwardCalls?.OnwardCall || []).map((call) => {
             const d = call.Extensions?.Distances || {};
             const stopId = (call.StopPointRef || "").replace("MTA_", "");
-            return { stopId, name: call.StopPointName || stopId, distance: d.PresentableDistance || null, stopsAway: d.StopsFromCall ?? null, metersAway: d.DistanceFromCall ?? null };
+            const dist = d.PresentableDistance || call.ArrivalProximityText || null;
+            const stopsAway = d.StopsFromCall ?? call.NumberOfStopsAway ?? null;
+            return { stopId, name: Array.isArray(call.StopPointName) ? call.StopPointName[0] : (call.StopPointName || stopId), distance: dist, stopsAway, metersAway: d.DistanceFromCall ?? call.DistanceFromStop ?? null };
           });
           const mc = mvj.MonitoredCall;
           const nextStop = mc ? { stopId: (mc.StopPointRef || "").replace("MTA_", ""), distance: mc.Extensions?.Distances?.PresentableDistance || null, stopsAway: mc.Extensions?.Distances?.StopsFromCall ?? null } : null;
