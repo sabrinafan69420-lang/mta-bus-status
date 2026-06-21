@@ -2440,3 +2440,76 @@ body {
     padding: 8px 6px;
   }
 }
+
+/* === My Commute === */
+.my-commute { padding: 0; }
+.commute-form { display: flex; flex-direction: column; gap: 8px; }
+.commute-input { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; }
+.commute-save-btn { padding: 8px 16px; border-radius: 8px; border: none; background: var(--accent); color: white; font-weight: 600; font-size: 13px; cursor: pointer; }
+.commute-save-btn:disabled { opacity: 0.5; cursor: default; }
+.commute-route { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; }
+.commute-origin, .commute-dest { padding: 4px 8px; border-radius: 6px; background: var(--surface-2); }
+.commute-arrow { color: var(--text-dim); font-size: 16px; }
+.commute-edit-btn { margin-left: auto; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); font-size: 11px; cursor: pointer; }
+.commute-edit-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.commute-walk { padding: 6px 0; font-size: 12px; color: var(--text-dim); }
+.commute-options { display: flex; flex-direction: column; gap: 6px; }
+.commute-option { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-size: 12px; }
+.commute-route-badges { display: flex; gap: 4px; }
+.commute-route-badge { padding: 2px 8px; border-radius: 4px; color: white; font-size: 11px; font-weight: 700; }
+.commute-walk-time { color: var(--text-dim); }
+.commute-total { margin-left: auto; font-weight: 600; }
+.commute-loading { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); padding: 8px 0; }
+.commute-no-results { font-size: 12px; color: var(--text-dim); padding: 8px 0; }
+.commute-refresh-btn { margin-top: 8px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); font-size: 12px; cursor: pointer; }
+
+/* === Crowding Badge === */
+.crowding-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.crowd-seats { background: var(--green-dim); color: var(--green); }
+.crowd-standing { background: var(--yellow-dim); color: var(--yellow); }
+.crowd-full { background: var(--red-dim); color: var(--red); }
+
+/* === Reliability Score === */
+.reliability-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.reliability-card { padding: 10px; border-radius: 8px; background: var(--surface-2); text-align: center; }
+.reliability-route { display: inline-block; padding: 2px 10px; border-radius: 4px; color: white; font-size: 12px; font-weight: 700; margin-bottom: 6px; }
+.reliability-pct { font-size: 24px; font-weight: 800; margin: 4px 0; }
+.reliability-pct.good { color: var(--green); }
+.reliability-pct.mid { color: var(--yellow); }
+.reliability-pct.bad { color: var(--red); }
+.reliability-detail { font-size: 11px; color: var(--text-dim); }
+.reliability-no-data { font-size: 11px; color: var(--text-dim); padding: 8px 0; }
+
+/* === Delay Notifications === */
+.delay-notif-indicator { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; background: var(--red-dim); color: var(--red); font-size: 11px; font-weight: 600; }
+
+/* === Subway Connections === */
+.subway-connections { padding: 0; }
+.subway-toggle { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; cursor: pointer; }
+.subway-toggle:hover { border-color: var(--accent); }
+.subway-toggle:disabled { opacity: 0.5; }
+.subway-list { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.subway-stop-group { padding: 8px; border-radius: 8px; background: var(--surface-2); }
+.subway-stop-name { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+.subway-station { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 11px; }
+.subway-station-name { flex: 1; }
+.subway-lines { color: var(--accent); font-weight: 600; font-size: 10px; }
+.subway-dist { color: var(--text-dim); font-size: 10px; }
+
+/* === User Reports === */
+.report-form { display: flex; flex-direction: column; gap: 8px; padding: 10px 0; }
+.report-select { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; }
+.report-types { display: flex; flex-wrap: wrap; gap: 4px; }
+.report-type-btn { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); font-size: 11px; cursor: pointer; }
+.report-type-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+.report-type-btn:hover { border-color: var(--accent); }
+.report-input { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; }
+.report-list { display: flex; flex-direction: column; gap: 6px; }
+.report-card { padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
+.report-card-header { display: flex; align-items: center; gap: 8px; }
+.report-type-label { font-size: 12px; font-weight: 600; }
+.report-time { margin-left: auto; font-size: 10px; color: var(--text-dim); }
+.report-delete { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 12px; padding: 2px 4px; }
+.report-delete:hover { color: var(--red); }
+.report-stop { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.report-note { font-size: 11px; color: var(--text-dim); margin-top: 2px; font-style: italic; }

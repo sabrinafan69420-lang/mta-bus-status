@@ -836,6 +836,367 @@ function SystemStats({ vehicles, stops, alerts, trackedRoutes }) {
   );
 }
 
+// === Feature: My Commute ===
+const COMMUTE_KEY = "mta-commute";
+function MyCommute({ trackedRoutes, routeColors }) {
+  const [commute, setCommute] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(COMMUTE_KEY)) || null; } catch { return null; }
+  });
+  const [editMode, setEditMode] = useState(!commute);
+  const [origin, setOrigin] = useState(commute?.origin || "");
+  const [dest, setDest] = useState(commute?.dest || "");
+  const [originCoords, setOriginCoords] = useState(commute?.originCoords || null);
+  const [destCoords, setDestCoords] = useState(commute?.destCoords || null);
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const geocode = async (q) => {
+    const r = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxgl.accessToken}&country=us&types=address,place,neighborhood`);
+    const d = await r.json();
+    if (d.features?.length) return { text: d.features[0].place_name, coords: d.features[0].center };
+    return null;
+  };
+
+  const handleSave = async () => {
+    if (!origin.trim() || !dest.trim()) return;
+    setLoading(true);
+    const [o, d] = await Promise.all([geocode(origin), geocode(dest)]);
+    if (o && d) {
+      const c = { origin: o.text, dest: d.text, originCoords: o.coords, destCoords: d.coords };
+      setCommute(c);
+      setOrigin(o.text);
+      setDest(d.text);
+      setOriginCoords(o.coords);
+      setDestCoords(d.coords);
+      localStorage.setItem(COMMUTE_KEY, JSON.stringify(c));
+      setEditMode(false);
+    }
+    setLoading(false);
+  };
+
+  const fetchCommute = async () => {
+    if (!commute) return;
+    setLoading(true);
+    try {
+      const [tripRes, walkRes] = await Promise.all([
+        fetch(`/api/trip?origin=${commute.originCoords[1]},${commute.originCoords[0]}&dest=${commute.destCoords[1]},${commute.destCoords[0]}`),
+        fetch(`https://api.mapbox.com/directions/v5/mapbox/walking/${commute.originCoords[0]},${commute.originCoords[1]};${commute.destCoords[0]},${commute.destCoords[1]}?access_token=${mapboxgl.accessToken}&geometries=geojson`),
+      ]);
+      const tripData = await tripRes.json();
+      const walkData = await walkRes.json();
+      setResults({ trip: tripData, walk: walkData.routes?.[0] });
+    } catch {}
+    setLoading(false);
+  };
+
+  useEffect(() => { if (commute && !editMode) fetchCommute(); }, [commute, editMode]);
+
+  if (editMode) {
+    return (
+      <div className="my-commute">
+        <div className="section-title">My Commute</div>
+        <div className="commute-form">
+          <input className="commute-input" placeholder="From (e.g. 123 Atlantic Ave)" value={origin} onChange={e => setOrigin(e.target.value)} />
+          <input className="commute-input" placeholder="To (e.g. 42 St Grand Central)" value={dest} onChange={e => setDest(e.target.value)} />
+          <button className="commute-save-btn" onClick={handleSave} disabled={loading || !origin.trim() || !dest.trim()}>
+            {loading ? "Saving..." : "Save Commute"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const tripResults = results?.trip?.results || [];
+  const walkInfo = results?.walk;
+
+  return (
+    <div className="my-commute">
+      <div className="section-title">
+        My Commute
+        <button className="commute-edit-btn" onClick={() => setEditMode(true)}>Edit</button>
+      </div>
+      <div className="commute-route">
+        <span className="commute-origin">{commute.origin}</span>
+        <span className="commute-arrow">→</span>
+        <span className="commute-dest">{commute.dest}</span>
+      </div>
+      {loading ? <div className="commute-loading"><div className="spinner-sm" /> Loading...</div> : (
+        <>
+          {walkInfo && (
+            <div className="commute-walk">
+              🚶 {Math.round(walkInfo.distance / 1609.34 * 10) / 10} mi · {Math.round(walkInfo.duration / 60)} min walk
+            </div>
+          )}
+          {tripResults.length > 0 ? (
+            <div className="commute-options">
+              {tripResults.map((r, i) => (
+                <div key={i} className="commute-option">
+                  <span className="commute-route-badges">
+                    {(r.routes || []).map((ro, j) => (
+                      <span key={j} className="commute-route-badge" style={{ background: routeColors[ro] || "#6366f1" }}>{ro}</span>
+                    ))}
+                  </span>
+                  <span className="commute-walk-time">{r.walkMins || "?"} min walk</span>
+                  <span className="commute-total">~{(r.totalMins || "?")} min</span>
+                </div>
+              ))}
+            </div>
+          ) : <div className="commute-no-results">No bus routes found between these locations</div>}
+          <button className="commute-refresh-btn" onClick={fetchCommute} disabled={loading}>Refresh</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// === Feature: Crowding Badge ===
+function CrowdingBadge({ occupancy }) {
+  if (!occupancy) return null;
+  const map = {
+    seatsAvailable: { icon: "💺", text: "Seats", cls: "crowd-seats" },
+    standingAvailable: { icon: "🧍", text: "Standing", cls: "crowd-standing" },
+    full: { icon: " packed", text: "Full", cls: "crowd-full" },
+    crushedStandingOnly: { icon: " crushed", text: "Crushed", cls: "crowd-full" },
+  };
+  const info = map[occupancy] || { icon: "?", text: occupancy, cls: "crowd-unknown" };
+  return <span className={`crowding-badge ${info.cls}`}>{info.icon} {info.text}</span>;
+}
+
+// === Feature: Reliability Score ===
+const RELIABILITY_KEY = "mta-reliability";
+function ReliabilityScore({ stops, trackedRoutes, routeColors }) {
+  const [history, setHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(RELIABILITY_KEY) || "[]"); } catch { return []; }
+  });
+
+  useEffect(() => {
+    const allArrivals = [];
+    (Array.isArray(stops) ? stops : []).forEach(s => {
+      (s?.arrivals || []).forEach(a => {
+        if (a?.route && a?.minutes != null) {
+          allArrivals.push({ route: a.route, mins: a.minutes, delay: a.delay || 0, ts: Date.now() });
+        }
+      });
+    });
+    if (allArrivals.length === 0) return;
+    setHistory(prev => {
+      const updated = [...prev, ...allArrivals].slice(-500);
+      localStorage.setItem(RELIABILITY_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, [stops]);
+
+  const stats = useMemo(() => {
+    return trackedRoutes.map(route => {
+      const routeHistory = history.filter(h => h.route === route);
+      if (routeHistory.length === 0) return { route, total: 0, onTime: 0, pct: null };
+      const onTime = routeHistory.filter(h => h.delay <= 120).length;
+      const avgDelay = routeHistory.reduce((s, h) => s + h.delay, 0) / routeHistory.length;
+      return { route, total: routeHistory.length, onTime, pct: Math.round(onTime / routeHistory.length * 100), avgDelay: Math.round(avgDelay / 60) };
+    });
+  }, [history, trackedRoutes]);
+
+  return (
+    <div className="reliability-score">
+      <div className="section-title">Reliability Score</div>
+      <div className="reliability-grid">
+        {stats.map(s => (
+          <div key={s.route} className="reliability-card">
+            <div className="reliability-route" style={{ background: routeColors[s.route] || "#888" }}>{s.route}</div>
+            {s.pct != null ? (
+              <>
+                <div className={`reliability-pct ${s.pct >= 80 ? "good" : s.pct >= 50 ? "mid" : "bad"}`}>{s.pct}%</div>
+                <div className="reliability-detail">{s.onTime}/{s.total} on-time</div>
+                <div className="reliability-detail">Avg delay: {s.avgDelay}m</div>
+              </>
+            ) : <div className="reliability-no-data">No data yet</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// === Feature: Delay Notifications ===
+function DelayNotifications({ alerts, trackedRoutes, notifPermission }) {
+  const prevAlertsRef = useRef([]);
+
+  useEffect(() => {
+    if (notifPermission !== "granted") return;
+    const prev = prevAlertsRef.current;
+    const prevIds = new Set(prev.map(a => a.id));
+    alerts.forEach(alert => {
+      if (prevIds.has(alert.id)) return;
+      const isDelay = alert.effect?.includes("DELAY") || alert.effect?.includes("DETOUR") || alert.effect?.includes("NO_SERVICE");
+      const affectsRoute = alert.routes?.some(r => trackedRoutes.includes(r));
+      if (isDelay && affectsRoute) {
+        try {
+          new Notification(`⚠️ ${alert.routes.join(", ")} — ${alert.effect?.replace(/_/g, " ")}`, {
+            body: alert.header || "Service change detected",
+            icon: "/favicon.svg",
+            tag: alert.id,
+          });
+        } catch {}
+      }
+    });
+    prevAlertsRef.current = alerts;
+  }, [alerts, trackedRoutes, notifPermission]);
+
+  return null;
+}
+
+// === Feature: Subway Connections ===
+function SubwayConnections({ stops }) {
+  const [subwayData, setSubwayData] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const fetchSubway = async () => {
+    if (open) { setOpen(false); return; }
+    const stopsWithCoords = (Array.isArray(stops) ? stops : []).filter(s => s?.lat != null && s?.lon != null).slice(0, 5);
+    if (stopsWithCoords.length === 0) return;
+    setLoading(true);
+    const data = {};
+    await Promise.all(stopsWithCoords.map(async (stop) => {
+      try {
+        const r = await fetch(`/api/subway-stations?lat=${stop.lat}&lon=${stop.lon}&radius=800`);
+        const d = await r.json();
+        data[stop.stopId] = d.stations || [];
+      } catch { data[stop.stopId] = []; }
+    }));
+    setSubwayData(data);
+    setLoading(false);
+    setOpen(true);
+  };
+
+  const hasConnections = Object.values(subwayData).some(v => v.length > 0);
+
+  return (
+    <div className="subway-connections">
+      <button className="subway-toggle" onClick={fetchSubway} disabled={loading}>
+        {loading ? "Loading..." : open ? "Hide Subway" : "🚇 Subway Connections"}
+      </button>
+      {open && hasConnections && (
+        <div className="subway-list">
+          {Object.entries(subwayData).map(([stopId, stations]) => {
+            if (!stations.length) return null;
+            const stop = (Array.isArray(stops) ? stops : []).find(s => s.stopId === stopId);
+            return (
+              <div key={stopId} className="subway-stop-group">
+                <div className="subway-stop-name">{stop?.name || stopId}</div>
+                {stations.map((s, i) => (
+                  <div key={i} className="subway-station">
+                    <span className="subway-station-name">{s.name}</span>
+                    <span className="subway-lines">{s.lines.join(", ")}</span>
+                    <span className="subway-dist">{Math.round(s.distance)}m</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === Feature: User Reports ===
+const REPORTS_KEY = "mta-user-reports";
+function UserReports({ trackedRoutes, routeColors }) {
+  const [reports, setReports] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(REPORTS_KEY) || "[]"); } catch { return []; }
+  });
+  const [showForm, setShowForm] = useState(false);
+  const [reportRoute, setReportRoute] = useState("");
+  const [reportType, setReportType] = useState("");
+  const [reportNote, setReportNote] = useState("");
+  const [reportStop, setReportStop] = useState("");
+
+  const REPORT_TYPES = [
+    { value: "crowded", label: "Packed" },
+    { value: "delayed", label: "Delayed" },
+    { value: "dirty", label: "Dirty" },
+    { value: "broken_ac", label: "No A/C" },
+    { value: "clean", label: "Clean" },
+    { value: "friendly_driver", label: "Friendly Driver" },
+    { value: "skip_stop", label: "Skipped Stop" },
+    { value: "other", label: "Other" },
+  ];
+
+  const handleSubmit = () => {
+    if (!reportRoute || !reportType) return;
+    const report = {
+      id: Date.now(),
+      route: reportRoute,
+      type: reportType,
+      stop: reportStop,
+      note: reportNote,
+      ts: Date.now(),
+    };
+    const updated = [report, ...reports].slice(0, 50);
+    setReports(updated);
+    localStorage.setItem(REPORTS_KEY, JSON.stringify(updated));
+    setShowForm(false);
+    setReportRoute("");
+    setReportType("");
+    setReportNote("");
+    setReportStop("");
+  };
+
+  const deleteReport = (id) => {
+    const updated = reports.filter(r => r.id !== id);
+    setReports(updated);
+    localStorage.setItem(REPORTS_KEY, JSON.stringify(updated));
+  };
+
+  return (
+    <div className="user-reports">
+      <div className="section-title">
+        Reports
+        <button className="commute-edit-btn" onClick={() => setShowForm(!showForm)}>
+          {showForm ? "Cancel" : "+ New Report"}
+        </button>
+      </div>
+      {showForm && (
+        <div className="report-form">
+          <select className="report-select" value={reportRoute} onChange={e => setReportRoute(e.target.value)}>
+            <option value="">Select route...</option>
+            {trackedRoutes.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <div className="report-types">
+            {REPORT_TYPES.map(t => (
+              <button key={t.value} className={`report-type-btn ${reportType === t.value ? "active" : ""}`} onClick={() => setReportType(t.value)}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <input className="report-input" placeholder="Stop name (optional)" value={reportStop} onChange={e => setReportStop(e.target.value)} />
+          <input className="report-input" placeholder="Note (optional)" value={reportNote} onChange={e => setReportNote(e.target.value)} />
+          <button className="commute-save-btn" onClick={handleSubmit} disabled={!reportRoute || !reportType}>Submit Report</button>
+        </div>
+      )}
+      {reports.length === 0 ? (
+        <div className="commute-no-results">No reports yet</div>
+      ) : (
+        <div className="report-list">
+          {reports.map(r => (
+            <div key={r.id} className="report-card">
+              <div className="report-card-header">
+                <span className="commute-route-badge" style={{ background: routeColors[r.route] || "#888" }}>{r.route}</span>
+                <span className="report-type-label">{REPORT_TYPES.find(t => t.value === r.type)?.label || r.type}</span>
+                <span className="report-time">{new Date(r.ts).toLocaleTimeString()}</span>
+                <button className="report-delete" onClick={() => deleteReport(r.id)}>✕</button>
+              </div>
+              {r.stop && <div className="report-stop">{r.stop}</div>}
+              {r.note && <div className="report-note">{r.note}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // --- Map Component ---
 function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRoutes, routeColors, heatmapEnabled, onMapMove }) {
   const mapContainer = useRef(null);
@@ -1669,6 +2030,7 @@ export default function App() {
   return (
     <div className="app">
       <NotificationBanner permission={notifPermission} onRequest={requestNotifPermission} />
+      <DelayNotifications alerts={alerts} trackedRoutes={trackedRoutes} notifPermission={notifPermission} />
 
       <div className="header">
         <div className="header-left">
@@ -1775,6 +2137,10 @@ export default function App() {
         <button className={`mobile-tab ${mobileSheet === "nearby" ? "active" : ""}`} onClick={() => setMobileSheet("nearby")}>Nearby</button>
         <button className={`mobile-tab ${mobileSheet === "stats" ? "active" : ""}`} onClick={() => setMobileSheet("stats")}>Stats</button>
         <button className={`mobile-tab ${mobileSheet === "trip" ? "active" : ""}`} onClick={() => setMobileSheet("trip")}>Trip</button>
+        <button className={`mobile-tab ${mobileSheet === "commute" ? "active" : ""}`} onClick={() => setMobileSheet("commute")}>Commute</button>
+        <button className={`mobile-tab ${mobileSheet === "subway" ? "active" : ""}`} onClick={() => setMobileSheet("subway")}>Subway</button>
+        <button className={`mobile-tab ${mobileSheet === "reliability" ? "active" : ""}`} onClick={() => setMobileSheet("reliability")}>Reliability</button>
+        <button className={`mobile-tab ${mobileSheet === "reports" ? "active" : ""}`} onClick={() => setMobileSheet("reports")}>Reports</button>
       </div>
 
       {/* Add Route */}
@@ -1891,6 +2257,27 @@ export default function App() {
         {/* Feature 2: Trip Planner */}
         <div className={`panel ${mobileSheet === "trip" ? "mobile-visible" : ""}`}>
           <TripPlanner trackedRoutes={trackedRoutes} routeColors={routeColors} />
+        </div>
+
+        {/* Feature: My Commute */}
+        <div className={`panel ${mobileSheet === "commute" ? "mobile-visible" : ""}`}>
+          <MyCommute trackedRoutes={trackedRoutes} routeColors={routeColors} />
+        </div>
+
+        {/* Feature: Subway Connections */}
+        <div className={`panel ${mobileSheet === "subway" ? "mobile-visible" : ""}`}>
+          <div className="section-title">Subway Connections</div>
+          <SubwayConnections stops={allStopsFlat} />
+        </div>
+
+        {/* Feature: Reliability Score */}
+        <div className={`panel ${mobileSheet === "reliability" ? "mobile-visible" : ""}`}>
+          <ReliabilityScore stops={stops} trackedRoutes={trackedRoutes} routeColors={routeColors} />
+        </div>
+
+        {/* Feature: User Reports */}
+        <div className={`panel ${mobileSheet === "reports" ? "mobile-visible" : ""}`}>
+          <UserReports trackedRoutes={trackedRoutes} routeColors={routeColors} />
         </div>
       </div>
 
