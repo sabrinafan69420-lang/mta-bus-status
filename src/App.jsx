@@ -10,6 +10,9 @@ const DEFAULT_COLORS = { B6: "#3b82f6", B8: "#f59e0b", B15: "#10b981" };
 const EXTRA_COLORS = ["#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#06b6d4", "#84cc16", "#e11d48", "#6366f1", "#a855f7", "#0ea5e9", "#d946ef", "#22d3ee", "#facc15"];
 const MAP_REFRESH = 15_000;
 const DATA_REFRESH = 30_000;
+const HISTORY_KEY = "mta-departure-history";
+const VIEWS_KEY = "mta-saved-views";
+const SOUND_KEY = "mta-sound-alerts";
 
 const MTA_ROUTES = [
   "B1","B2","B3","B4","B6","B7","B8","B9","B10","B11","B12","B13","B14","B15","B16","B17","B24","B25","B26","B31","B32","B35","B36","B37","B38","B39","B41","B42","B43","B44","B44-SBS","B45","B46","B46-SBS","B47","B48","B49","B52","B54","B57","B60","B61","B62","B63","B64","B65","B66","B67","B68","B69","B70","B74","B77","B79","B81","B82","B82-SBS","B83","B84","B100","BM1","BM2","BM3","BM4","BM5","BMX1","BMX2","BMX3","BMX4","BMX5","BMX6","BMX7","BMX8","BMX9","BMX10",
@@ -65,6 +68,14 @@ function busSpeedColor(speed, isDelayed) {
   if (speed < 5) return "#ef4444";
   if (speed < 15) return "#f59e0b";
   return "#22c55e";
+}
+
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function busSvg(color, bearing = 0, showDelayRing = false) {
@@ -132,12 +143,18 @@ function ArrivalRow({ arrival }) {
   );
 }
 
-function StopCard({ stop, isFavorite, onToggleFavorite, routeColors }) {
+function StopCard({ stop, isFavorite, onToggleFavorite, routeColors, accessibility }) {
+  const wheelInfo = accessibility?.stops?.find(s => s.id === stop.stopId);
   return (
     <div className="stop-card">
       <div className="stop-card-header">
         <div>
-          <div className="stop-name">{stop.name}</div>
+          <div className="stop-name">
+            {stop.name}
+            {wheelInfo?.wheelchairBoarding === "accessible" && (
+              <span className="wheelchair-icon" title="Wheelchair accessible">♿</span>
+            )}
+          </div>
           <div className="stop-id">{stop.stopId}</div>
         </div>
         <div className="stop-card-actions">
@@ -414,6 +431,403 @@ function NotificationBanner({ permission, onRequest }) {
     <div className="notif-banner">
       <span>Enable notifications to get alerts when your bus is arriving</span>
       <button className="notif-btn" onClick={onRequest}>Enable</button>
+    </div>
+  );
+}
+
+// === Feature: Nearby Stops ===
+function NearbyStops({ stops, routeColors, userLocation, onLocate }) {
+  const [nearby, setNearby] = useState([]);
+  useEffect(() => {
+    if (!userLocation || !stops.length) return;
+    const withDist = stops.map(s => ({
+      ...s,
+      dist: haversineMeters(userLocation.lat, userLocation.lng, s.lat, s.lon),
+    }));
+    withDist.sort((a, b) => a.dist - b.dist);
+    setNearby(withDist.slice(0, 10));
+  }, [userLocation, stops]);
+
+  if (!userLocation) {
+    return (
+      <div className="nearby-panel">
+        <div className="section-title">Nearby Stops</div>
+        <button className="nearby-locate-btn" onClick={onLocate}>📍 Find me</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="nearby-panel">
+      <div className="section-title">Nearby Stops <span className="count">({nearby.length})</span></div>
+      {nearby.length === 0 ? (
+        <div className="no-alerts"><p>No stops within range</p></div>
+      ) : (
+        <div className="nearby-list">
+          {nearby.map(s => {
+            const dist = s.dist < 1000 ? `${Math.round(s.dist)}m` : `${(s.dist / 1000).toFixed(1)}km`;
+            return (
+              <div key={`${s.route}-${s.id}`} className="nearby-stop">
+                <span className="nearby-stop-route" style={{ background: routeColors[s.route] || "#888" }}>{s.route}</span>
+                <div className="nearby-stop-info">
+                  <span className="nearby-stop-name">{s.name}</span>
+                  <span className="nearby-stop-dist">{dist}</span>
+                </div>
+                <span className="nearby-stop-id">{s.id}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === Feature: Trip Planner ===
+function TripPlanner({ trackedRoutes, routeColors }) {
+  const [origin, setOrigin] = useState("");
+  const [dest, setDest] = useState("");
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handlePlan = async () => {
+    if (!origin.trim() || !dest.trim()) return;
+    setLoading(true);
+    setError("");
+    setResults(null);
+    try {
+      const [oRes, dRes] = await Promise.all([
+        fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(origin)}.json?access_token=${mapboxgl.accessToken}&types=address,place,poi&limit=1`),
+        fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(dest)}.json?access_token=${mapboxgl.accessToken}&types=address,place,poi&limit=1`),
+      ]);
+      const oData = await oRes.json();
+      const dData = await dRes.json();
+      const oCoords = oData.features?.[0]?.center;
+      const dCoords = dData.features?.[0]?.center;
+      if (!oCoords || !dCoords) { setError("Could not find locations"); setLoading(false); return; }
+      const routesQuery = trackedRoutes.join(",");
+      const res = await fetch(`/api/trip?originLat=${oCoords[1]}&originLng=${oCoords[0]}&destLat=${dCoords[1]}&destLng=${dCoords[0]}&routes=${encodeURIComponent(routesQuery)}`);
+      const data = await res.json();
+      setResults(data);
+    } catch { setError("Trip planning failed"); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="trip-planner">
+      <div className="section-title">Trip Planner</div>
+      <div className="trip-inputs">
+        <input className="trip-input" placeholder="From..." value={origin} onChange={e => setOrigin(e.target.value)} onKeyDown={e => e.key === "Enter" && handlePlan()} />
+        <input className="trip-input" placeholder="To..." value={dest} onChange={e => setDest(e.target.value)} onKeyDown={e => e.key === "Enter" && handlePlan()} />
+        <button className="trip-btn" onClick={handlePlan} disabled={loading || !origin.trim() || !dest.trim()}>
+          {loading ? "..." : "Plan"}
+        </button>
+      </div>
+      {error && <div className="trip-error">{error}</div>}
+      {results?.suggestions?.length > 0 && (
+        <div className="trip-results">
+          {results.suggestions.map((s, i) => (
+            <div key={i} className={`trip-suggestion ${s.transferRequired ? "transfer" : ""}`}>
+              <div className="trip-sug-header">
+                <span className="trip-sug-route" style={{ background: routeColors[s.route] || "#888" }}>{s.route}</span>
+                <span className="trip-sug-walk">~{s.totalWalkMin} min walk</span>
+                {s.transferRequired && <span className="trip-sug-transfer">↻ Transfer</span>}
+              </div>
+              <div className="trip-sug-stops">
+                <div className="trip-sug-stop">
+                  <span className="trip-sug-dot" />
+                  <span>{s.originStop.name}</span>
+                </div>
+                <div className="trip-sug-stop">
+                  <span className="trip-sug-dot dest" />
+                  <span>{s.destStop.name}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {results?.originStops && (
+        <div className="trip-nearby-section">
+          <div className="trip-nearby-label">Nearest stops to origin:</div>
+          {results.originStops.map(s => (
+            <span key={s.id} className="trip-nearby-tag" style={{ background: routeColors[s.route] || "#888" }}>
+              {s.route} · {s.name} ({s.dist}m)
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === Feature: Route Performance Stats ===
+function RouteStats({ stops, vehicles, trackedRoutes, routeColors }) {
+  const stats = useMemo(() => {
+    return trackedRoutes.map(route => {
+      const routeVehicles = vehicles.filter(v => v.route === route);
+      const routeArrivals = [];
+      stops.forEach(stop => {
+        if (stop.route !== route) return;
+        (stop.arrivals || []).forEach(a => {
+          if (a.minutes != null) routeArrivals.push(a);
+        });
+      });
+      const totalDelay = routeArrivals.reduce((sum, a) => sum + (a.delay || 0), 0);
+      const avgDelay = routeArrivals.length > 0 ? totalDelay / routeArrivals.length : 0;
+      const onTime = routeArrivals.filter(a => (a.delay || 0) <= 300).length;
+      const onTimePct = routeArrivals.length > 0 ? Math.round(onTime / routeArrivals.length * 100) : 100;
+      return {
+        route,
+        busCount: routeVehicles.length,
+        avgDelay: Math.round(avgDelay / 60),
+        onTimePct,
+        arrivalCount: routeArrivals.length,
+      };
+    });
+  }, [stops, vehicles, trackedRoutes]);
+
+  return (
+    <div className="route-stats-panel">
+      <div className="section-title">Route Performance</div>
+      <div className="stats-grid">
+        {stats.map(s => (
+          <div key={s.route} className="stat-card">
+            <div className="stat-header">
+              <span className="stat-route-badge" style={{ background: routeColors[s.route] || "#888" }}>{s.route}</span>
+              <span className="stat-buses">{s.busCount} 🚌</span>
+            </div>
+            <div className="stat-body">
+              <div className="stat-item">
+                <span className="stat-value">{s.onTimePct}%</span>
+                <span className="stat-label">On Time</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">{s.avgDelay}m</span>
+                <span className="stat-label">Avg Delay</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">{s.arrivalCount}</span>
+                <span className="stat-label">Arrivals</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// === Feature: Sound Alerts ===
+function SoundToggle({ enabled, onToggle }) {
+  return (
+    <button className={`header-action-btn sound-toggle ${enabled ? "active" : ""}`} onClick={onToggle} title={enabled ? "Sound alerts on" : "Sound alerts off"}>
+      {enabled ? "🔊" : "🔇"}
+    </button>
+  );
+}
+
+// === Feature: Saved Views ===
+function SavedViews({ onLoad, currentRoutes, mapState }) {
+  const [views, setViews] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(VIEWS_KEY) || "[]"); } catch { return []; }
+  });
+  const [viewName, setViewName] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const saveView = () => {
+    if (!viewName.trim()) return;
+    const newView = {
+      id: Date.now(),
+      name: viewName.trim(),
+      routes: [...currentRoutes],
+      lat: mapState.lat,
+      lng: mapState.lng,
+      zoom: mapState.zoom,
+      savedAt: new Date().toISOString(),
+    };
+    const updated = [...views, newView];
+    setViews(updated);
+    localStorage.setItem(VIEWS_KEY, JSON.stringify(updated));
+    setViewName("");
+  };
+
+  const deleteView = (id) => {
+    const updated = views.filter(v => v.id !== id);
+    setViews(updated);
+    localStorage.setItem(VIEWS_KEY, JSON.stringify(updated));
+  };
+
+  return (
+    <div className="saved-views">
+      <button className="header-action-btn" onClick={() => setOpen(!open)} title="Saved views">
+        📌 Views {views.length > 0 && <span className="saved-count">{views.length}</span>}
+      </button>
+      {open && (
+        <div className="saved-views-dropdown">
+          <div className="saved-views-save-row">
+            <input className="saved-views-name-input" placeholder="View name..." value={viewName} onChange={e => setViewName(e.target.value)} onKeyDown={e => e.key === "Enter" && saveView()} />
+            <button className="saved-views-save-btn" onClick={saveView} disabled={!viewName.trim()}>Save</button>
+          </div>
+          {views.length === 0 ? (
+            <div className="saved-views-empty">No saved views yet</div>
+          ) : (
+            views.map(v => (
+              <div key={v.id} className="saved-view-item">
+                <button className="saved-view-load" onClick={() => { onLoad(v); setOpen(false); }}>
+                  <span className="saved-view-name">{v.name}</span>
+                  <span className="saved-view-routes">{v.routes.join(", ")}</span>
+                </button>
+                <button className="saved-view-delete" onClick={() => deleteView(v.id)}>✕</button>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === Feature: Route Comparison ===
+function RouteCompare({ trackedRoutes, routeColors, vehicles, stops }) {
+  const [routeA, setRouteA] = useState(trackedRoutes[0] || "");
+  const [routeB, setRouteB] = useState(trackedRoutes[1] || "");
+  const [open, setOpen] = useState(false);
+
+  const statsA = useMemo(() => {
+    if (!routeA) return null;
+    const v = vehicles.filter(x => x.route === routeA);
+    const arr = [];
+    stops.forEach(s => { if (s.route === routeA) (s.arrivals || []).forEach(a => arr.push(a)); });
+    const avgDelay = arr.length > 0 ? arr.reduce((sum, a) => sum + (a.delay || 0), 0) / arr.length : 0;
+    const onTime = arr.length > 0 ? arr.filter(a => (a.delay || 0) <= 300).length / arr.length * 100 : 100;
+    return { busCount: v.length, avgDelay: Math.round(avgDelay / 60), onTimePct: Math.round(onTime), arrivalCount: arr.length };
+  }, [routeA, vehicles, stops]);
+
+  const statsB = useMemo(() => {
+    if (!routeB) return null;
+    const v = vehicles.filter(x => x.route === routeB);
+    const arr = [];
+    stops.forEach(s => { if (s.route === routeB) (s.arrivals || []).forEach(a => arr.push(a)); });
+    const avgDelay = arr.length > 0 ? arr.reduce((sum, a) => sum + (a.delay || 0), 0) / arr.length : 0;
+    const onTime = arr.length > 0 ? arr.filter(a => (a.delay || 0) <= 300).length / arr.length * 100 : 100;
+    return { busCount: v.length, avgDelay: Math.round(avgDelay / 60), onTimePct: Math.round(onTime), arrivalCount: arr.length };
+  }, [routeB, vehicles, stops]);
+
+  return (
+    <div className="route-compare">
+      <button className="header-action-btn" onClick={() => setOpen(!open)} title="Compare routes">⚖️ Compare</button>
+      {open && (
+        <div className="compare-dropdown">
+          <div className="compare-selectors">
+            <select className="compare-select" value={routeA} onChange={e => setRouteA(e.target.value)}>
+              {trackedRoutes.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <span className="compare-vs">vs</span>
+            <select className="compare-select" value={routeB} onChange={e => setRouteB(e.target.value)}>
+              {trackedRoutes.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </div>
+          {statsA && statsB && (
+            <div className="compare-grid">
+              <div className="compare-col">
+                <div className="compare-route-badge" style={{ background: routeColors[routeA] || "#888" }}>{routeA}</div>
+                <div className="compare-stat"><span>{statsA.busCount}</span> buses</div>
+                <div className="compare-stat"><span>{statsA.onTimePct}%</span> on time</div>
+                <div className="compare-stat"><span>{statsA.avgDelay}m</span> avg delay</div>
+                <div className="compare-stat"><span>{statsA.arrivalCount}</span> arrivals</div>
+              </div>
+              <div className="compare-col">
+                <div className="compare-route-badge" style={{ background: routeColors[routeB] || "#888" }}>{routeB}</div>
+                <div className="compare-stat"><span>{statsB.busCount}</span> buses</div>
+                <div className="compare-stat"><span>{statsB.onTimePct}%</span> on time</div>
+                <div className="compare-stat"><span>{statsB.avgDelay}m</span> avg delay</div>
+                <div className="compare-stat"><span>{statsB.arrivalCount}</span> arrivals</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === Feature: Past Departures ===
+function PastDepartures({ departures }) {
+  const [open, setOpen] = useState(false);
+  if (departures.length === 0) return null;
+  return (
+    <div className="past-departures">
+      <button className="past-dep-toggle" onClick={() => setOpen(!open)}>
+        🕐 Recent Snapshots ({departures.length})
+      </button>
+      {open && (
+        <div className="past-dep-list">
+          {departures.slice(0, 10).map((snap, i) => (
+            <div key={i} className="past-dep-snap">
+              <div className="past-dep-time">{new Date(snap.ts).toLocaleTimeString()}</div>
+              <div className="past-dep-arrivals">
+                {snap.arrivals.slice(0, 5).map((a, j) => (
+                  <span key={j} className="past-dep-arrival">
+                    <span className="past-dep-route" style={{ background: snap.routeColors?.[a.route] || "#888" }}>{a.route}</span>
+                    {a.minutes != null ? `${a.minutes}m` : "--"}
+                  </span>
+                ))}
+                {snap.arrivals.length > 5 && <span className="past-dep-more">+{snap.arrivals.length - 5} more</span>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// === Feature: System Stats ===
+function SystemStats({ vehicles, stops, alerts, trackedRoutes }) {
+  const totalBuses = vehicles.length;
+  const totalStops = Object.values(stops).flat().length;
+  const totalArrivals = stops.reduce((sum, s) => sum + (s.arrivals?.length || 0), 0);
+  const delayedBuses = vehicles.filter(v => v.progressRate === "delayed").length;
+  const avgSpeed = vehicles.filter(v => v.speed > 0).reduce((sum, v) => sum + v.speed, 0) / (vehicles.filter(v => v.speed > 0).length || 1);
+  const fullBuses = vehicles.filter(v => v.occupancy === "full").length;
+
+  return (
+    <div className="system-stats">
+      <div className="section-title">System Overview</div>
+      <div className="sys-stats-grid">
+        <div className="sys-stat-card">
+          <div className="sys-stat-icon">🚌</div>
+          <div className="sys-stat-value">{totalBuses}</div>
+          <div className="sys-stat-label">Active Buses</div>
+        </div>
+        <div className="sys-stat-card">
+          <div className="sys-stat-icon">⚠️</div>
+          <div className="sys-stat-value">{delayedBuses}</div>
+          <div className="sys-stat-label">Delayed</div>
+        </div>
+        <div className="sys-stat-card">
+          <div className="sys-stat-icon">⚡</div>
+          <div className="sys-stat-value">{Math.round(avgSpeed)}</div>
+          <div className="sys-stat-label">Avg Speed (mph)</div>
+        </div>
+        <div className="sys-stat-card">
+          <div className="sys-stat-icon">🔴</div>
+          <div className="sys-stat-value">{fullBuses}</div>
+          <div className="sys-stat-label">Full Buses</div>
+        </div>
+        <div className="sys-stat-card">
+          <div className="sys-stat-icon">🚏</div>
+          <div className="sys-stat-value">{totalStops}</div>
+          <div className="sys-stat-label">Tracked Stops</div>
+        </div>
+        <div className="sys-stat-card">
+          <div className="sys-stat-icon">🔔</div>
+          <div className="sys-stat-value">{alerts.length}</div>
+          <div className="sys-stat-label">Active Alerts</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -847,6 +1261,29 @@ export default function App() {
   const searchRef = useRef(null);
   const routeInputRef = useRef(null);
   const notifTimersRef = useRef({});
+  const audioCtxRef = useRef(null);
+
+  // Feature 5: Sound alerts
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    try { return localStorage.getItem(SOUND_KEY) === "true"; } catch { return false; }
+  });
+
+  // Feature 6: Saved views (managed by SavedViews component)
+
+  // Feature 9: Past departures
+  const [pastSnapshots, setPastSnapshots] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; }
+  });
+
+  // Feature 1: Nearby stops
+  const [userLocation, setUserLocation] = useState(null);
+  const allStopsFlat = useMemo(() => {
+    const result = [];
+    Object.entries(routeStops).forEach(([route, s]) => {
+      s.forEach((stop) => result.push({ ...stop, route }));
+    });
+    return result;
+  }, [routeStops]);
 
   // Theme
   useEffect(() => {
@@ -899,6 +1336,56 @@ export default function App() {
     localStorage.setItem("mta-favorite-routes", JSON.stringify(favoriteRoutes));
   }, [favoriteRoutes]);
 
+  // Persist sound setting
+  useEffect(() => {
+    localStorage.setItem(SOUND_KEY, String(soundEnabled));
+  }, [soundEnabled]);
+
+  // Feature 5: Play sound on bus arrival
+  useEffect(() => {
+    if (!soundEnabled) return;
+    stops.forEach((stop) => {
+      stop.arrivals?.forEach((a) => {
+        if (a.minutes === 2) {
+          const key = `${stop.stopId}-${a.route}-${a.destination}`;
+          if (!notifTimersRef.current[key]) {
+            notifTimersRef.current[key] = true;
+            try {
+              if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+              const ctx = audioCtxRef.current;
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.connect(gain);
+              gain.connect(ctx.destination);
+              osc.frequency.value = 800;
+              osc.type = "sine";
+              gain.gain.value = 0.3;
+              osc.start();
+              gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+              osc.stop(ctx.currentTime + 0.5);
+            } catch {}
+          }
+        }
+      });
+    });
+  }, [stops, soundEnabled]);
+
+  // Feature 9: Snapshot departures every 60s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const allArrivals = [];
+      stops.forEach(s => (s.arrivals || []).forEach(a => allArrivals.push(a)));
+      if (allArrivals.length === 0) return;
+      const snap = { ts: Date.now(), arrivals: allArrivals.slice(0, 20), routeColors: { ...routeColors } };
+      setPastSnapshots(prev => {
+        const updated = [snap, ...prev].slice(0, 20);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+        return updated;
+      });
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [stops, routeColors]);
+
   const toggleRoute = (route) => {
     setVisibleRoutes((prev) =>
       prev.includes(route) ? prev.filter((r) => r !== route) : [...prev, route]
@@ -923,6 +1410,13 @@ export default function App() {
   const handleGoToMe = () => {
     const mapEl = document.querySelector(".map-container");
     if (mapEl && mapEl._goToUserLocation) mapEl._goToUserLocation();
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
   };
 
   const handleShare = () => {
@@ -934,22 +1428,14 @@ export default function App() {
   };
 
   // Search
-  const allStops = useMemo(() => {
-    const result = [];
-    Object.entries(routeStops).forEach(([route, s]) => {
-      s.forEach((stop) => result.push({ ...stop, route }));
-    });
-    return result;
-  }, [routeStops]);
-
   useEffect(() => {
     if (!searchQuery.trim()) { setSearchResults([]); return; }
     const q = searchQuery.toLowerCase();
-    const matches = allStops.filter((s) =>
+    const matches = allStopsFlat.filter((s) =>
       s.name.toLowerCase().includes(q) || s.id.includes(q)
     );
     setSearchResults(matches);
-  }, [searchQuery, allStops]);
+  }, [searchQuery, allStopsFlat]);
 
   const handleSearchSelect = (stop) => {
     setVisibleRoutes((prev) => prev.includes(stop.route) ? prev : [...prev, stop.route]);
@@ -1010,7 +1496,6 @@ export default function App() {
     return MTA_ROUTES.filter((r) => r.startsWith(q) && !trackedRoutes.includes(r)).slice(0, 10);
   }, [routeInput, trackedRoutes]);
 
-  // Add a new route
   const handleAddRoute = async () => {
     const input = routeInput.trim().toUpperCase();
     if (!input) return;
@@ -1065,6 +1550,18 @@ export default function App() {
     setVisibleRoutes((prev) => prev.filter((r) => r !== route));
     setPolylines((prev) => { const n = { ...prev }; delete n[route]; return n; });
     setRouteStops((prev) => { const n = { ...prev }; delete n[route]; return n; });
+  };
+
+  // Feature 6: Load saved view
+  const handleLoadView = (view) => {
+    setTrackedRoutes(view.routes);
+    setVisibleRoutes([...view.routes]);
+    setMapState({ lat: view.lat, lng: view.lng, zoom: view.zoom });
+    const mapEl = document.querySelector(".map-container");
+    if (mapEl) {
+      const map = mapEl.__mb_map || mapEl._map;
+      if (map) map.flyTo({ center: [view.lng, view.lat], zoom: view.zoom, duration: 1000 });
+    }
   };
 
   // Fetch data
@@ -1165,6 +1662,9 @@ export default function App() {
           <div className="refresh-info">
             {lastRefresh && <>Updated {lastRefresh.toLocaleTimeString()}</>}
           </div>
+          <SoundToggle enabled={soundEnabled} onToggle={() => setSoundEnabled(!soundEnabled)} />
+          <RouteCompare trackedRoutes={trackedRoutes} routeColors={routeColors} vehicles={vehicles} stops={stops} />
+          <SavedViews onLoad={handleLoadView} currentRoutes={trackedRoutes} mapState={mapState} />
           <button className="header-action-btn" onClick={handleShare} title="Share link">
             {copied ? "✓ Copied" : "🔗 Share"}
           </button>
@@ -1173,6 +1673,9 @@ export default function App() {
           </button>
         </div>
       </div>
+
+      {/* Feature 10: System Stats */}
+      <SystemStats vehicles={vehicles} stops={stops} alerts={alerts} trackedRoutes={trackedRoutes} />
 
       {/* Map */}
       <div className="map-section">
@@ -1252,6 +1755,9 @@ export default function App() {
         <button className={`mobile-tab ${mobileSheet === "alerts" ? "active" : ""}`} onClick={() => setMobileSheet("alerts")}>Alerts ({filteredAlerts.length})</button>
         <button className={`mobile-tab ${mobileSheet === "calendar" ? "active" : ""}`} onClick={() => setMobileSheet("calendar")}>Calendar</button>
         <button className={`mobile-tab ${mobileSheet === "schedule" ? "active" : ""}`} onClick={() => setMobileSheet("schedule")}>Schedule</button>
+        <button className={`mobile-tab ${mobileSheet === "nearby" ? "active" : ""}`} onClick={() => setMobileSheet("nearby")}>Nearby</button>
+        <button className={`mobile-tab ${mobileSheet === "stats" ? "active" : ""}`} onClick={() => setMobileSheet("stats")}>Stats</button>
+        <button className={`mobile-tab ${mobileSheet === "trip" ? "active" : ""}`} onClick={() => setMobileSheet("trip")}>Trip</button>
       </div>
 
       {/* Add Route */}
@@ -1294,6 +1800,9 @@ export default function App() {
           </button>
         ))}
       </div>
+
+      {/* Feature 9: Past Departures */}
+      <PastDepartures departures={pastSnapshots} />
 
       {/* Content panels */}
       <div className={`content-panels ${mobileSheet}`}>
@@ -1350,6 +1859,21 @@ export default function App() {
             ))}
           </div>
           <SchedulePanel route={scheduleRoute} onClose={() => setScheduleRoute(null)} routeColors={routeColors} />
+        </div>
+
+        {/* Feature 1: Nearby Stops */}
+        <div className={`panel ${mobileSheet === "nearby" ? "mobile-visible" : ""}`}>
+          <NearbyStops stops={allStopsFlat} routeColors={routeColors} userLocation={userLocation} onLocate={handleGoToMe} />
+        </div>
+
+        {/* Feature 3: Route Performance Stats */}
+        <div className={`panel ${mobileSheet === "stats" ? "mobile-visible" : ""}`}>
+          <RouteStats stops={stops} vehicles={vehicles} trackedRoutes={trackedRoutes} routeColors={routeColors} />
+        </div>
+
+        {/* Feature 2: Trip Planner */}
+        <div className={`panel ${mobileSheet === "trip" ? "mobile-visible" : ""}`}>
+          <TripPlanner trackedRoutes={trackedRoutes} routeColors={routeColors} />
         </div>
       </div>
 
