@@ -51,15 +51,27 @@ function minsClass(mins) {
   return "";
 }
 
-function speedColor(speed) {
+function delayColor(delay) {
+  if (delay == null || delay <= 0) return null;
+  if (delay > 120) return "#ef4444";
+  if (delay > 60) return "#f97316";
+  if (delay > 30) return "#eab308";
+  return null;
+}
+
+function busSpeedColor(speed, isDelayed) {
+  if (isDelayed) return "#ef4444";
   if (speed == null || speed <= 0) return null;
   if (speed < 5) return "#ef4444";
   if (speed < 15) return "#f59e0b";
   return "#22c55e";
 }
 
-function busSvg(color, bearing = 0) {
-  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><g transform="rotate(${bearing}, 18, 18)"><circle cx="18" cy="18" r="16" fill="${color}" opacity="0.25"/><circle cx="18" cy="18" r="12" fill="${color}"/><rect x="9" y="6" width="18" height="24" rx="5" fill="${color}" stroke="white" stroke-width="2"/><rect x="12" y="9" width="12" height="9" rx="2" fill="white" opacity="0.9"/><circle cx="13" cy="24" r="2" fill="white"/><circle cx="23" cy="24" r="2" fill="white"/><polygon points="18,2 16,6 20,6" fill="white" opacity="0.8"/></g></svg>`)}`;
+function busSvg(color, bearing = 0, showDelayRing = false) {
+  const ring = showDelayRing
+    ? `<circle cx="19" cy="19" r="17" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 2" opacity="0.8"/>`
+    : "";
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 38 38"><g transform="rotate(${bearing}, 19, 19)">${ring}<circle cx="19" cy="19" r="16" fill="${color}" opacity="0.25"/><circle cx="19" cy="19" r="12" fill="${color}"/><rect x="10" y="7" width="18" height="24" rx="5" fill="${color}" stroke="white" stroke-width="2"/><rect x="13" y="10" width="12" height="9" rx="2" fill="white" opacity="0.9"/><circle cx="14" cy="25" r="2" fill="white"/><circle cx="24" cy="25" r="2" fill="white"/><polygon points="19,3 17,7 21,7" fill="white" opacity="0.8"/></g></svg>`)}`;
 }
 
 function AlertCard({ alert }) {
@@ -84,6 +96,7 @@ function AlertCard({ alert }) {
 }
 
 function ArrivalRow({ arrival }) {
+  const dc = delayColor(arrival.delay);
   return (
     <div className="arrival-row">
       <span className="arrival-route">{arrival.route}</span>
@@ -109,15 +122,17 @@ function ArrivalRow({ arrival }) {
         {arrival.stopsAway != null && (
           <div className="arrival-stops-away">{arrival.stopsAway} stops</div>
         )}
-        {arrival.delay > 30 && (
-          <div className="arrival-delay">+{Math.round(arrival.delay / 60)}m</div>
+        {dc && (
+          <div className="arrival-delay" style={{ color: dc }}>
+            +{Math.round((arrival.delay || 0) / 60)}m
+          </div>
         )}
       </div>
     </div>
   );
 }
 
-function StopCard({ stop, isFavorite, onToggleFavorite }) {
+function StopCard({ stop, isFavorite, onToggleFavorite, routeColors }) {
   return (
     <div className="stop-card">
       <div className="stop-card-header">
@@ -133,7 +148,7 @@ function StopCard({ stop, isFavorite, onToggleFavorite }) {
           >
             {isFavorite ? "★" : "☆"}
           </button>
-          <span className="stop-route-badge">{stop.route}</span>
+          <span className="stop-route-badge" style={{ background: routeColors[stop.route] || "var(--accent)" }}>{stop.route}</span>
         </div>
       </div>
       <div className="arrivals-list">
@@ -149,7 +164,142 @@ function StopCard({ stop, isFavorite, onToggleFavorite }) {
   );
 }
 
-function busPopupHtml(v, color) {
+function DepartureBoard({ stops, routeColors, trackedRoutes, activeRoute }) {
+  const allArrivals = useMemo(() => {
+    const list = [];
+    stops.forEach((stop) => {
+      (stop.arrivals || []).forEach((a) => {
+        list.push({ ...a, stopName: stop.name, stopId: stop.stopId });
+      });
+    });
+    if (activeRoute !== "ALL") {
+      return list.filter((a) => a.route === activeRoute).sort((a, b) => (a.minutes ?? 999) - (b.minutes ?? 999));
+    }
+    return list.sort((a, b) => (a.minutes ?? 999) - (b.minutes ?? 999));
+  }, [stops, activeRoute]);
+
+  if (allArrivals.length === 0) {
+    return (
+      <div className="departure-board-empty">
+        <div className="no-alerts-icon">🚌</div>
+        <h3>No Arrivals</h3>
+        <p>No upcoming arrivals across tracked routes</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="departure-board">
+      <div className="departure-header-row">
+        <span className="dep-col-route">Route</span>
+        <span className="dep-col-stop">Stop</span>
+        <span className="dep-col-dest">Destination</span>
+        <span className="dep-col-time">Time</span>
+        <span className="dep-col-delay">Delay</span>
+      </div>
+      {allArrivals.map((a, i) => {
+        const dc = delayColor(a.delay);
+        return (
+          <div key={`${a.route}-${a.stopId}-${a.destination}-${i}`} className="departure-row">
+            <span className="dep-col-route">
+              <span className="dep-route-badge" style={{ background: routeColors[a.route] || "#888" }}>{a.route}</span>
+            </span>
+            <span className="dep-col-stop">{a.stopName}</span>
+            <span className="dep-col-dest">{a.destination}</span>
+            <span className={`dep-col-time ${minsClass(a.minutes)}`}>
+              {a.minutes != null ? (a.minutes === 0 ? "Now" : `${a.minutes}m`) : "--"}
+            </span>
+            <span className="dep-col-delay" style={dc ? { color: dc } : undefined}>
+              {dc ? `+${Math.round((a.delay || 0) / 60)}m` : ""}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ServiceCalendar({ alerts }) {
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  const alertDays = useMemo(() => {
+    const days = new Set();
+    alerts.forEach((alert) => {
+      (alert.activePeriods || []).forEach((p) => {
+        if (!p.start) return;
+        const start = new Date(p.start * 1000);
+        const end = p.end ? new Date(p.end * 1000) : new Date(p.start * 1000 + 86400000);
+        const d = new Date(start);
+        while (d <= end) {
+          days.add(d.toISOString().slice(0, 10));
+          d.setDate(d.getDate() + 1);
+        }
+      });
+    });
+    return days;
+  }, [alerts]);
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date().toISOString().slice(0, 10);
+  const monthName = currentMonth.toLocaleString("default", { month: "long", year: "numeric" });
+
+  const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
+
+  const cells = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <div className="service-calendar">
+      <div className="calendar-nav">
+        <button className="calendar-nav-btn" onClick={prevMonth}>◀</button>
+        <span className="calendar-month">{monthName}</span>
+        <button className="calendar-nav-btn" onClick={nextMonth}>▶</button>
+      </div>
+      <div className="calendar-weekdays">
+        {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
+          <span key={d} className="calendar-weekday">{d}</span>
+        ))}
+      </div>
+      <div className="calendar-grid">
+        {cells.map((day, i) => {
+          if (day === null) return <span key={`empty-${i}`} className="calendar-day empty" />;
+          const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          const hasAlert = alertDays.has(dateStr);
+          const isToday = dateStr === today;
+          return (
+            <span
+              key={dateStr}
+              className={`calendar-day ${hasAlert ? "has-alert" : ""} ${isToday ? "today" : ""}`}
+              title={hasAlert ? "Active alerts on this day" : ""}
+            >
+              {day}
+            </span>
+          );
+        })}
+      </div>
+      {alerts.length > 0 && (
+        <div className="calendar-alerts-list">
+          {alerts.slice(0, 5).map((a) => (
+            <div key={a.id} className="calendar-alert-item">
+              <span className={`alert-effect ${effectClass(a.effect)}`} style={{ fontSize: 10, padding: "2px 6px" }}>
+                {formatEffect(a.effect)}
+              </span>
+              <span className="calendar-alert-routes">{a.routes.join(", ")}</span>
+              <span className="calendar-alert-header">{a.header}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function busPopupHtml(v, color, routeColors) {
   const progressLabel = {
     "in progress": "Moving", normalProgress: "Moving", delayed: "Delayed",
     "stopped at stop": "At Stop", "stopped at connection": "At Connection",
@@ -157,7 +307,8 @@ function busPopupHtml(v, color) {
     "off route": "Off Route", noProgress: "Stopped", unknown: "Unknown",
   };
   const status = progressLabel[v.progressRate] || v.progressRate || "";
-  const statusClass = v.progressRate === "delayed" ? "delayed"
+  const isDelayed = v.progressRate === "delayed";
+  const statusClass = isDelayed ? "delayed"
     : v.progressRate === "noProgress" ? "stopped"
     : (v.progressRate === "in progress" || v.progressRate === "normalProgress") ? "active" : "";
   const progressStatusLabels = { layover: "Layover — waiting at terminal", spooking: "No GPS — following schedule", prevTrip: "Serving previous trip" };
@@ -172,19 +323,21 @@ function busPopupHtml(v, color) {
         <div class="bus-popup-stop ${i === 0 ? "next" : ""}">
           <span class="bus-popup-stop-num">${i + 1}</span>
           <span class="bus-popup-stop-name">${s.name}</span>
-          <span class="bus-popup-stop-dist">${s.distance || (s.stopsAway != null ? s.stopsAway + " stops" : "—")}</span>
+          <span class="bus-popup-stop-dist">${s.distance || (s.stopsAway != null ? s.stopsAway + " stops" : "\u2014")}</span>
         </div>
       `).join("")}
     </div>` : "";
+  const delayBadge = isDelayed ? `<span class="bus-popup-delay-badge">DELAYED</span>` : "";
 
   return `<div class="bus-popup-card">
     <div class="bus-popup-header" style="background:${color}">
       <span class="bus-popup-route">${v.route}</span>
       <span class="bus-popup-vehicle">#${v.id}</span>
+      ${delayBadge}
     </div>
     <div class="bus-popup-body">
       <div class="bus-popup-row"><span class="bus-popup-label">Direction</span><span>${v.direction}</span></div>
-      <div class="bus-popup-row"><span class="bus-popup-label">Destination</span><span>${v.destination || "—"}</span></div>
+      <div class="bus-popup-row"><span class="bus-popup-label">Destination</span><span>${v.destination || "\u2014"}</span></div>
       ${v.speed != null ? `<div class="bus-popup-row"><span class="bus-popup-label">Speed</span><span>${Math.round(v.speed)} mph</span></div>` : ""}
       ${status ? `<div class="bus-popup-row"><span class="bus-popup-label">Status</span><span class="${statusClass}">${status}</span></div>` : ""}
       ${pStatus ? `<div class="bus-popup-row bus-popup-note"><span>${pStatus}</span></div>` : ""}
@@ -266,13 +419,14 @@ function NotificationBanner({ permission, onRequest }) {
 }
 
 // --- Map Component ---
-function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRoutes, routeColors }) {
+function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRoutes, routeColors, heatmapEnabled, onMapMove }) {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef({});
   const popupRef = useRef(null);
-  const mapReadyRef = useRef(false);
+  const [mapReady, setMapReady] = useState(false);
   const userMarkerRef = useRef(null);
+  const walkingSourceRef = useRef(null);
 
   useEffect(() => {
     if (mapRef.current) return;
@@ -287,21 +441,29 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
     map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-left");
     mapRef.current = map;
-    map.on("load", () => { mapReadyRef.current = true; });
-    return () => map.remove();
+    map.on("load", () => setMapReady(true));
+    let moveTimer = null;
+    map.on("moveend", () => {
+      if (moveTimer) clearTimeout(moveTimer);
+      moveTimer = setTimeout(() => {
+        const c = map.getCenter();
+        onMapMove?.({ lat: c.lat, lng: c.lng, zoom: map.getZoom() });
+      }, 300);
+    });
+    return () => { if (moveTimer) clearTimeout(moveTimer); map.remove(); };
   }, []);
 
   const removeLayerSafe = useCallback((map, layerId, sourceId) => {
     try {
       if (map.getLayer(layerId)) map.removeLayer(layerId);
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
+      if (sourceId && map.getSource(sourceId)) map.removeSource(sourceId);
     } catch {}
   }, []);
 
   // Update polylines
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReadyRef.current) return;
+    if (!map || !mapReady) return;
     trackedRoutes.forEach((route) => {
       const sourceId = `route-${route}`;
       const layerGlow = `route-glow-${route}`;
@@ -324,12 +486,52 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
         paint: { "line-color": routeColors[route], "line-width": 3.5, "line-opacity": 0.85 },
       });
     });
-  }, [polylines, visibleRoutes, trackedRoutes, routeColors, removeLayerSafe]);
+  }, [polylines, visibleRoutes, trackedRoutes, routeColors, removeLayerSafe, mapReady]);
+
+  // Heatmap
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    removeLayerSafe(map, "bus-heatmap", "bus-heatmap-source");
+    if (!heatmapEnabled) return;
+    const visible = vehicles.filter((v) => v.lat && v.lon && visibleRoutes.includes(v.route));
+    if (visible.length === 0) return;
+    map.addSource("bus-heatmap-source", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: visible.map((v) => ({
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Point", coordinates: [v.lon, v.lat] },
+        })),
+      },
+    });
+    map.addLayer({
+      id: "bus-heatmap",
+      type: "heatmap",
+      source: "bus-heatmap-source",
+      paint: {
+        "heatmap-weight": 1,
+        "heatmap-intensity": 0.7,
+        "heatmap-radius": 30,
+        "heatmap-color": [
+          "interpolate", ["linear"], ["heatmap-density"],
+          0, "rgba(0,0,0,0)",
+          0.2, "rgba(99,102,241,0.3)",
+          0.4, "rgba(99,102,241,0.5)",
+          0.6, "rgba(236,72,153,0.5)",
+          0.8, "rgba(239,68,68,0.6)",
+          1, "rgba(239,68,68,0.8)",
+        ],
+      },
+    });
+  }, [heatmapEnabled, vehicles, visibleRoutes, removeLayerSafe, mapReady]);
 
   // Update stop markers
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReadyRef.current) return;
+    if (!map || !mapReady) return;
     Object.keys(markersRef.current).forEach((key) => {
       if (key.startsWith("stop-")) {
         markersRef.current[key].remove();
@@ -384,15 +586,16 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
                 : arrivals.map((a) => {
                     const mc = a.minutes <= 1 ? "arriving" : a.minutes <= 5 ? "soon" : "";
                     const ml = a.minutes === 0 ? "Now" : a.minutes;
+                    const dc = delayColor(a.delay);
                     return `<div class="stop-arrival-row">
                       <span class="stop-arrival-mins ${mc}">${ml}${a.minutes > 0 ? '<span class="stop-arrival-unit">min</span>' : ''}</span>
                       <span class="stop-arrival-dest">${a.destination}</span>
                       <span class="stop-arrival-dir">${a.direction}</span>
                       ${a.stopsAway != null ? `<span class="stop-arrival-stops">${a.stopsAway} stops</span>` : ''}
-                      ${a.delay > 30 ? `<span class="stop-arrival-delay">+${Math.round(a.delay / 60)}m</span>` : ''}
+                      ${dc ? `<span class="stop-arrival-delay" style="color:${dc}">+${Math.round((a.delay||0) / 60)}m</span>` : ''}
                     </div>`;
                   }).join("");
-              popup.setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${route}</span><div class="stop-arrivals">${arrivalsHtml}</div></div>`);
+              popup.setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${route}</span><div class="stop-arrivals">${arrivalsHtml}</div><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},'${stop.name.replace(/'/g, "\\'")}')">Directions</button></div>`);
             })
             .catch(() => {
               if (!popup.isOpen()) return;
@@ -403,31 +606,31 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
         markersRef.current[`stop-${route}-${stop.id}`] = marker;
       });
     });
-  }, [stops, visibleRoutes, trackedRoutes, routeColors]);
+  }, [stops, visibleRoutes, trackedRoutes, routeColors, mapReady]);
 
   // Update bus markers
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !mapReadyRef.current) return;
+    if (!map || !mapReady) return;
     vehicles.forEach((v) => {
       if (v.lat == null || v.lon == null) return;
       if (!visibleRoutes.includes(v.route)) return;
       const key = `bus-${v.id}`;
-      const sColor = speedColor(v.speed);
-      const color = sColor || routeColors[v.route] || "#888";
+      const isDelayed = v.progressRate === "delayed";
+      const color = busSpeedColor(v.speed, isDelayed) || routeColors[v.route] || "#888";
       if (markersRef.current[key]) {
         const marker = markersRef.current[key];
         marker.setLngLat([v.lon, v.lat], { duration: 1400 });
         const el = marker.getElement();
-        const newBg = `url("${busSvg(color, v.bearing)}")`;
+        const newBg = `url("${busSvg(color, v.bearing, isDelayed)}")`;
         if (el.style.backgroundImage !== newBg) el.style.backgroundImage = newBg;
         if (popupRef.current && popupRef.current._busId === v.id) popupRef.current.setLngLat([v.lon, v.lat]);
         return;
       }
       const el = document.createElement("div");
       el.className = "bus-marker";
-      el.style.cssText = "width:36px;height:36px;cursor:pointer;transition:filter 0.2s;transform-origin:center center;";
-      el.style.backgroundImage = `url("${busSvg(color, v.bearing)}")`;
+      el.style.cssText = "width:38px;height:38px;cursor:pointer;transition:filter 0.2s;transform-origin:center center;";
+      el.style.backgroundImage = `url("${busSvg(color, v.bearing, isDelayed)}")`;
       el.style.backgroundSize = "contain";
       el.style.backgroundRepeat = "no-repeat";
       el.addEventListener("mouseenter", () => { el.style.filter = `brightness(1.3) drop-shadow(0 0 6px ${color})`; });
@@ -437,7 +640,7 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
         if (popupRef.current) popupRef.current.remove();
         const popup = new mapboxgl.Popup({ offset: 16, className: "bus-popup" })
           .setLngLat([v.lon, v.lat])
-          .setHTML(busPopupHtml(v, routeColors[v.route] || "#888"))
+          .setHTML(busPopupHtml(v, routeColors[v.route] || "#888", routeColors))
           .addTo(map);
         popup._busId = v.id;
         popupRef.current = popup;
@@ -448,13 +651,69 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
     Object.keys(markersRef.current).forEach((key) => {
       if (key.startsWith("bus-")) {
         const id = key.replace("bus-", "");
-        if (!vehicles.find((v) => String(v.id) === String(id))) {
+        const v = vehicles.find((v) => String(v.id) === String(id));
+        if (!v || !visibleRoutes.includes(v.route)) {
           markersRef.current[key].remove();
           delete markersRef.current[key];
         }
       }
     });
-  }, [vehicles, visibleRoutes, routeColors]);
+  }, [vehicles, visibleRoutes, routeColors, mapReady]);
+
+  // Walking directions
+  useEffect(() => {
+    if (!mapRef.current || !mapReady) return;
+    window.__walkToStop = (lat, lon, name) => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const start = [pos.coords.longitude, pos.coords.latitude];
+          const end = [lon, lat];
+          const token = mapboxgl.accessToken;
+          fetch(`https://api.mapbox.com/directions/v5/mapbox/walking/${start[0]},${start[1]};${end[0]},${end[1]}?geometries=geojson&access_token=${token}`)
+            .then((r) => r.json())
+            .then((data) => {
+              const route = data.routes?.[0];
+              if (!route) return;
+              const map = mapRef.current;
+              if (!map) return;
+              if (walkingSourceRef.current) {
+                try { if (map.getLayer("walking-glow")) map.removeLayer("walking-glow"); if (map.getLayer("walking-route")) map.removeLayer("walking-route"); if (map.getSource("walking-route")) map.removeSource("walking-route"); } catch {}
+              }
+              map.addSource("walking-route", { type: "geojson", data: { type: "Feature", geometry: route.geometry } });
+              map.addLayer({ id: "walking-glow", type: "line", source: "walking-route", paint: { "line-color": "#4285f4", "line-width": 8, "line-opacity": 0.2, "line-blur": 4 } });
+              map.addLayer({ id: "walking-route", type: "line", source: "walking-route", paint: { "line-color": "#4285f4", "line-width": 3, "line-opacity": 0.9, "line-dasharray": [2, 1] } });
+              walkingSourceRef.current = "walking-route";
+              const dist = (route.distance / 1609.34).toFixed(1);
+              const mins = Math.round(route.duration / 60);
+              const bounds = new mapboxgl.LngLatBounds();
+              route.geometry.coordinates.forEach((c) => bounds.extend(c));
+              map.fitBounds(bounds, { padding: 80, maxZoom: 15, duration: 800 });
+              if (popupRef.current) popupRef.current.remove();
+              const popup = new mapboxgl.Popup({ offset: 10, maxWidth: "260px" })
+                .setLngLat(end)
+                .setHTML(`<div class="walking-popup"><div class="walking-popup-title">Walking to ${name}</div><div class="walking-popup-info"><span>${dist} mi</span><span>~${mins} min</span></div><button class="walking-clear-btn" onclick="window.__clearWalking&&window.__clearWalking()">Clear</button></div>`)
+                .addTo(map);
+              popupRef.current = popup;
+            });
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    };
+    window.__clearWalking = () => {
+      const map = mapRef.current;
+      if (!map) return;
+      try {
+        if (map.getLayer("walking-glow")) map.removeLayer("walking-glow");
+        if (map.getLayer("walking-route")) map.removeLayer("walking-route");
+        if (map.getSource("walking-route")) map.removeSource("walking-route");
+      } catch {}
+      walkingSourceRef.current = null;
+      if (popupRef.current) popupRef.current.remove();
+    };
+    return () => { delete window.__walkToStop; delete window.__clearWalking; };
+  }, []);
 
   const fitAllBuses = useCallback(() => {
     const map = mapRef.current;
@@ -519,15 +778,16 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
             : arrivals.map((a) => {
                 const mc = a.minutes <= 1 ? "arriving" : a.minutes <= 5 ? "soon" : "";
                 const ml = a.minutes === 0 ? "Now" : a.minutes;
+                const dc = delayColor(a.delay);
                 return `<div class="stop-arrival-row">
                   <span class="stop-arrival-mins ${mc}">${ml}${a.minutes > 0 ? '<span class="stop-arrival-unit">min</span>' : ''}</span>
                   <span class="stop-arrival-dest">${a.destination}</span>
                   <span class="stop-arrival-dir">${a.direction}</span>
                   ${a.stopsAway != null ? `<span class="stop-arrival-stops">${a.stopsAway} stops</span>` : ''}
-                  ${a.delay > 30 ? `<span class="stop-arrival-delay">+${Math.round(a.delay / 60)}m</span>` : ''}
+                  ${dc ? `<span class="stop-arrival-delay" style="color:${dc}">+${Math.round((a.delay||0) / 60)}m</span>` : ''}
                 </div>`;
               }).join("");
-          popup.setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${stop.route}</span><div class="stop-arrivals">${arrivalsHtml}</div></div>`);
+          popup.setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${stop.route}</span><div class="stop-arrivals">${arrivalsHtml}</div><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},'${stop.name.replace(/'/g, "\\'")}')">Directions</button></div>`);
         })
         .catch(() => {
           if (!popup.isOpen()) return;
@@ -576,9 +836,49 @@ export default function App() {
   });
   const [scheduleRoute, setScheduleRoute] = useState(null);
   const [mobileSheet, setMobileSheet] = useState("arrivals");
+  const [theme, setTheme] = useState(() => localStorage.getItem("mta-theme") || "dark");
+  const [heatmapEnabled, setHeatmapEnabled] = useState(false);
+  const [favoriteRoutes, setFavoriteRoutes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("mta-favorite-routes") || "[]"); } catch { return []; }
+  });
+  const [activePanel, setActivePanel] = useState("arrivals");
+  const [mapState, setMapState] = useState({ lat: 40.65, lng: -73.94, zoom: 12.5 });
+  const [copied, setCopied] = useState(false);
   const searchRef = useRef(null);
   const routeInputRef = useRef(null);
   const notifTimersRef = useRef({});
+
+  // Theme
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("mta-theme", theme);
+  }, [theme]);
+
+  // URL state - read on mount
+  useEffect(() => {
+    try {
+      const hash = window.location.hash.slice(1);
+      if (!hash) return;
+      const params = new URLSearchParams(hash);
+      const urlRoutes = params.get("routes")?.split(",").filter(Boolean);
+      const urlLat = parseFloat(params.get("lat"));
+      const urlLng = parseFloat(params.get("lng"));
+      const urlZoom = parseFloat(params.get("zoom"));
+      if (urlRoutes && urlRoutes.length > 0) setTrackedRoutes(urlRoutes);
+      if (!isNaN(urlLat) && !isNaN(urlLng)) setMapState((s) => ({ ...s, lat: urlLat, lng: urlLng }));
+      if (!isNaN(urlZoom)) setMapState((s) => ({ ...s, zoom: urlZoom }));
+    } catch {}
+  }, []);
+
+  // URL state - write on changes
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set("routes", trackedRoutes.join(","));
+    params.set("lat", mapState.lat.toFixed(4));
+    params.set("lng", mapState.lng.toFixed(4));
+    params.set("zoom", mapState.zoom.toFixed(1));
+    window.location.hash = params.toString();
+  }, [trackedRoutes, mapState]);
 
   // Build color map
   const routeColors = useMemo(() => {
@@ -594,8 +894,19 @@ export default function App() {
     localStorage.setItem("mta-routes", JSON.stringify(trackedRoutes));
   }, [trackedRoutes]);
 
+  // Persist favorite routes
+  useEffect(() => {
+    localStorage.setItem("mta-favorite-routes", JSON.stringify(favoriteRoutes));
+  }, [favoriteRoutes]);
+
   const toggleRoute = (route) => {
     setVisibleRoutes((prev) =>
+      prev.includes(route) ? prev.filter((r) => r !== route) : [...prev, route]
+    );
+  };
+
+  const toggleFavoriteRoute = (route) => {
+    setFavoriteRoutes((prev) =>
       prev.includes(route) ? prev.filter((r) => r !== route) : [...prev, route]
     );
   };
@@ -612,6 +923,14 @@ export default function App() {
   const handleGoToMe = () => {
     const mapEl = document.querySelector(".map-container");
     if (mapEl && mapEl._goToUserLocation) mapEl._goToUserLocation();
+  };
+
+  const handleShare = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   // Search
@@ -815,6 +1134,13 @@ export default function App() {
 
   const filteredAlerts = activeRoute === "ALL" ? alerts : alerts.filter((a) => a.routes.includes(activeRoute));
 
+  // Sort tracked routes: favorites first
+  const sortedTrackedRoutes = useMemo(() => {
+    const favs = trackedRoutes.filter((r) => favoriteRoutes.includes(r));
+    const nonFavs = trackedRoutes.filter((r) => !favoriteRoutes.includes(r));
+    return [...favs, ...nonFavs];
+  }, [trackedRoutes, favoriteRoutes]);
+
   if (loading) {
     return (
       <div className="app">
@@ -835,8 +1161,16 @@ export default function App() {
           <div className="mta-badge">MTA</div>
           <h1>Bus Status <span>/ {trackedRoutes.join(" · ")}</span></h1>
         </div>
-        <div className="refresh-info">
-          {lastRefresh && <>Updated {lastRefresh.toLocaleTimeString()}</>}
+        <div className="header-right">
+          <div className="refresh-info">
+            {lastRefresh && <>Updated {lastRefresh.toLocaleTimeString()}</>}
+          </div>
+          <button className="header-action-btn" onClick={handleShare} title="Share link">
+            {copied ? "✓ Copied" : "🔗 Share"}
+          </button>
+          <button className="header-action-btn theme-toggle" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} title="Toggle theme">
+            {theme === "dark" ? "☀️" : "🌙"}
+          </button>
         </div>
       </div>
 
@@ -865,8 +1199,11 @@ export default function App() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg>
               Fit All
             </button>
+            <button className={`fit-all-btn ${heatmapEnabled ? "active" : ""}`} onClick={() => setHeatmapEnabled(!heatmapEnabled)} title="Toggle heatmap">
+              🔥 Heat
+            </button>
             <div className="map-route-toggles">
-              {trackedRoutes.map((r) => (
+              {sortedTrackedRoutes.map((r) => (
                 <button
                   key={r}
                   className={`route-toggle ${visibleRoutes.includes(r) ? "active" : ""}`}
@@ -874,6 +1211,9 @@ export default function App() {
                   onClick={() => toggleRoute(r)}
                 >
                   <span className="route-dot" style={{ background: routeColors[r] }} />
+                  <span className="route-fav-star" onClick={(e) => { e.stopPropagation(); toggleFavoriteRoute(r); }}>
+                    {favoriteRoutes.includes(r) ? "★" : ""}
+                  </span>
                   {r}
                   <span className="route-count">{vehicleCounts[r]}</span>
                   {!DEFAULT_ROUTES.includes(r) && (
@@ -892,11 +1232,13 @@ export default function App() {
           visibleRoutes={visibleRoutes}
           trackedRoutes={trackedRoutes}
           routeColors={routeColors}
+          heatmapEnabled={heatmapEnabled}
+          onMapMove={setMapState}
         />
         <div className="map-legend">
           <span className="legend-item"><span className="legend-dot" style={{ background: "#22c55e" }} /> Fast</span>
           <span className="legend-item"><span className="legend-dot" style={{ background: "#f59e0b" }} /> Slow</span>
-          <span className="legend-item"><span className="legend-dot" style={{ background: "#ef4444" }} /> Stopped</span>
+          <span className="legend-item"><span className="legend-dot" style={{ background: "#ef4444" }} /> Delayed</span>
           <span className="legend-item"><span className="legend-dot" style={{ background: "#888" }} /> Stop</span>
           <span className="legend-item"><span className="legend-line" style={{ background: "#3b82f6" }} /> Route</span>
           <span className="legend-item">{vehicles.length} buses</span>
@@ -906,7 +1248,9 @@ export default function App() {
       {/* Mobile tabs */}
       <div className="mobile-tabs">
         <button className={`mobile-tab ${mobileSheet === "arrivals" ? "active" : ""}`} onClick={() => setMobileSheet("arrivals")}>Arrivals</button>
+        <button className={`mobile-tab ${mobileSheet === "departure" ? "active" : ""}`} onClick={() => setMobileSheet("departure")}>Board</button>
         <button className={`mobile-tab ${mobileSheet === "alerts" ? "active" : ""}`} onClick={() => setMobileSheet("alerts")}>Alerts ({filteredAlerts.length})</button>
+        <button className={`mobile-tab ${mobileSheet === "calendar" ? "active" : ""}`} onClick={() => setMobileSheet("calendar")}>Calendar</button>
         <button className={`mobile-tab ${mobileSheet === "schedule" ? "active" : ""}`} onClick={() => setMobileSheet("schedule")}>Schedule</button>
       </div>
 
@@ -957,9 +1301,14 @@ export default function App() {
           <div className="section-title">Live Arrivals {favorites.length > 0 && <span className="count">({favorites.length} starred)</span>}</div>
           <div className="arrivals-grid">
             {sortedStops.map((s) => (
-              <StopCard key={`${s.stopId}-${s.route}`} stop={s} isFavorite={isFav(s)} onToggleFavorite={toggleFavorite} />
+              <StopCard key={`${s.stopId}-${s.route}`} stop={s} isFavorite={isFav(s)} onToggleFavorite={toggleFavorite} routeColors={routeColors} />
             ))}
           </div>
+        </div>
+
+        <div className={`panel ${mobileSheet === "departure" ? "mobile-visible" : ""}`}>
+          <div className="section-title">Departure Board</div>
+          <DepartureBoard stops={stops} routeColors={routeColors} trackedRoutes={trackedRoutes} activeRoute={activeRoute} />
         </div>
 
         <div className={`panel ${mobileSheet === "alerts" ? "mobile-visible" : ""}`}>
@@ -977,6 +1326,11 @@ export default function App() {
               ))}
             </div>
           )}
+        </div>
+
+        <div className={`panel ${mobileSheet === "calendar" ? "mobile-visible" : ""}`}>
+          <div className="section-title">Service Calendar</div>
+          <ServiceCalendar alerts={filteredAlerts} />
         </div>
 
         <div className={`panel ${mobileSheet === "schedule" ? "mobile-visible" : ""}`}>
