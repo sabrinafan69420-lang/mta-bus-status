@@ -11,6 +11,15 @@ const EXTRA_COLORS = ["#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#06b6d4", "#8
 const MAP_REFRESH = 15_000;
 const DATA_REFRESH = 30_000;
 
+const MTA_ROUTES = [
+  "B1","B2","B3","B4","B6","B7","B8","B9","B10","B11","B12","B13","B14","B15","B16","B17","B24","B25","B26","B31","B32","B35","B36","B37","B38","B39","B41","B42","B43","B44","B44-SBS","B45","B46","B46-SBS","B47","B48","B49","B52","B54","B57","B60","B61","B62","B63","B64","B65","B66","B67","B68","B69","B70","B74","B77","B79","B81","B82","B82-SBS","B83","B84","B100","BM1","BM2","BM3","BM4","BM5","BMX1","BMX2","BMX3","BMX4","BMX5","BMX6","BMX7","BMX8","BMX9","BMX10",
+  "Q1","Q2","Q3","Q4","Q5","Q6","Q7","Q8","Q9","Q10","Q11","Q12","Q13","Q14","Q15","Q15A","Q16","Q17","Q18","Q19","Q20A","Q20B","Q21","Q22","Q23","Q24","Q25","Q26","Q27","Q28","Q29","Q30","Q31","Q32","Q33","Q34","Q35","Q36","Q37","Q38","Q39","Q40","Q41","Q42","Q43","Q44","Q45","Q46","Q47","Q48","Q49","Q50","Q52-SBS","Q53-SBS","Q54","Q55","Q56","Q57","Q58","Q59","Q60","Q61","Q64","Q65","Q66","Q67","Q68","Q69","Q70-SBS","Q71","Q72","Q76","Q77","Q78","Q80","Q82","Q83","Q84","Q85","Q86","Q88","Q89","Q90","Q100","Q101","Q102","Q103","Q104","Q109","Q110","Q111","Q112","Q113","Q114","Q115","Q116","Q143","Q231","Q252",
+  "M1","M2","M3","M4","M5","M7","M8","M9","M10","M11","M12","M13","M14","M15","M15-SBS","M16","M18","M20","M21","M22","M23-SBS","M24","M30","M31","M32","M34-SBS","M35","M40","M42","M43","M50","M51","M55","M57","M60-SBS","M66","M70","M72","M79-SBS","M80","M81","M86-SBS","M96","M98","M100","M101","M102","M103","M104","M106","M116","M125","M128","M142","M143","M148","M149","M150","M151","M212","M213","M214","M215","M216","M217","M218","M219","M220","M222",
+  "S1","S2","S3","S4","S5","S6","S7","S8","S9","S10","S12","S15","S16","S17","S18","S19","S20","S21","S22","S26","S27","S28","S29","S31","S32","S33","S34","S40","S41","S42","S43","S44","S45","S46","S47","S48","S49","S51","S52","S53","S54","S55","S56","S57","S59","S60","S61","S62","S66","S68","S69","S74","S76","S78","S79","S81","S84","S86","S89","S90","S91","S92","S93","S94","S96","S98","S99",
+  "X1","X2","X3","X4","X5","X6","X7","X8","X9","X10","X10A","X11","X12","X14","X15","X17","X18","X19","X20","X21","X22","X22A","X22B","X27","X28","X30","X31","X32","X36","X37","X38","X39","X40","X42","X43","X44","X45","X46","X48","X49","X51","X52","X54","X55","X57","X60","X63","X64","X68","X80",
+  "Bx1","Bx2","Bx3","Bx4","Bx4A","Bx5","Bx6","Bx6A","Bx7","Bx8","Bx9","Bx10","Bx11","Bx12","Bx12-SBS","Bx14","Bx15","Bx15-SBS","Bx16","Bx17","Bx18","Bx19","Bx20","Bx21","Bx22","Bx23","Bx24","Bx25","Bx26","Bx27","Bx28","Bx29","Bx30","Bx31","Bx32","Bx33","Bx34","Bx35","Bx36","Bx38","Bx39","Bx40","Bx41","Bx42","Bx43","Bx46","Bx48","Bx55","BxM1","BxM2","BxM3","BxM4","BxM6","BxM7","BxM8","BxM9","BxM10","BxM11","BxM12","BxM14","BxM15","BxM16","BxM17","BxM18","BxM20","BxM21","BxM22","BxM23","BxM24","BxM25","BxM26","BxM27","BxM28","BxM34","BxM35","BxM36","BxM38","BxM40","BxM41","BxM42","BxM43","BxM44","BxM46","BxM48","BxM49"
+];
+
 function getRouteColor(route, index) {
   if (DEFAULT_COLORS[route]) return DEFAULT_COLORS[route];
   return EXTRA_COLORS[(index || 0) % EXTRA_COLORS.length];
@@ -297,9 +306,9 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
       const sourceId = `route-${route}`;
       const layerGlow = `route-glow-${route}`;
       const layerLine = `route-layer-${route}`;
-      const visible = visibleRoutes.includes(route);
       removeLayerSafe(map, layerGlow, null);
       removeLayerSafe(map, layerLine, sourceId);
+      if (!visibleRoutes.includes(route)) return;
       const routeCoords = polylines[route];
       if (!routeCoords || routeCoords.length === 0) return;
       map.addSource(sourceId, {
@@ -308,12 +317,10 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
       });
       map.addLayer({
         id: layerGlow, type: "line", source: sourceId,
-        layout: { visibility: visible ? "visible" : "none" },
         paint: { "line-color": routeColors[route], "line-width": 10, "line-opacity": 0.15, "line-blur": 6 },
       });
       map.addLayer({
         id: layerLine, type: "line", source: sourceId,
-        layout: { visibility: visible ? "visible" : "none" },
         paint: { "line-color": routeColors[route], "line-width": 3.5, "line-opacity": 0.85 },
       });
     });
@@ -560,6 +567,7 @@ export default function App() {
   const [routeInput, setRouteInput] = useState("");
   const [routeError, setRouteError] = useState("");
   const [addingRoute, setAddingRoute] = useState(false);
+  const [showRouteSuggestions, setShowRouteSuggestions] = useState(false);
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
   );
@@ -677,10 +685,29 @@ export default function App() {
     setScheduleRoute(scheduleRoute === route ? null : route);
   };
 
+  const routeSuggestions = useMemo(() => {
+    if (!routeInput.trim()) return [];
+    const q = routeInput.toUpperCase().trim();
+    return MTA_ROUTES.filter((r) => r.startsWith(q) && !trackedRoutes.includes(r)).slice(0, 10);
+  }, [routeInput, trackedRoutes]);
+
   // Add a new route
   const handleAddRoute = async () => {
     const input = routeInput.trim().toUpperCase();
     if (!input) return;
+    await addRoute(input);
+    setRouteInput("");
+    setShowRouteSuggestions(false);
+  };
+
+  const handleAddRouteDirect = async (route) => {
+    setRouteInput(route);
+    setShowRouteSuggestions(false);
+    await addRoute(route);
+    setRouteInput("");
+  };
+
+  const addRoute = async (input) => {
     if (trackedRoutes.includes(input)) {
       setRouteError("Already tracking this route");
       setTimeout(() => setRouteError(""), 2000);
@@ -780,7 +807,7 @@ export default function App() {
   useEffect(() => {
     const handler = (e) => {
       if (searchRef.current && !searchRef.current.contains(e.target)) setShowSearch(false);
-      if (routeInputRef.current && !routeInputRef.current.contains(e.target)) setRouteError("");
+      if (routeInputRef.current && !routeInputRef.current.contains(e.target)) { setShowRouteSuggestions(false); setRouteError(""); }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -886,15 +913,27 @@ export default function App() {
       {/* Add Route */}
       <div className="add-route-section">
         <div className="add-route-row" ref={routeInputRef}>
-          <input
-            className="add-route-input"
-            type="text"
-            placeholder="Add route (e.g. B44-SBS, BxM1, Q58)..."
-            value={routeInput}
-            onChange={(e) => setRouteInput(e.target.value.toUpperCase())}
-            onKeyDown={(e) => { if (e.key === "Enter") handleAddRoute(); }}
-            disabled={addingRoute}
-          />
+          <div className="add-route-input-wrap">
+            <input
+              className="add-route-input"
+              type="text"
+              placeholder="Add route (e.g. B44-SBS, BxM1, Q58)..."
+              value={routeInput}
+              onChange={(e) => { setRouteInput(e.target.value.toUpperCase()); setShowRouteSuggestions(true); }}
+              onFocus={() => setShowRouteSuggestions(true)}
+              onKeyDown={(e) => { if (e.key === "Enter") { if (routeSuggestions.length > 0) { handleAddRouteDirect(routeSuggestions[0]); } else { handleAddRoute(); } } if (e.key === "Escape") setShowRouteSuggestions(false); }}
+              disabled={addingRoute}
+            />
+            {showRouteSuggestions && routeInput.trim() && routeSuggestions.length > 0 && (
+              <div className="route-suggestions">
+                {routeSuggestions.map((r) => (
+                  <button key={r} className="route-suggestion" onClick={() => handleAddRouteDirect(r)}>
+                    {r}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button className="add-route-btn" onClick={handleAddRoute} disabled={addingRoute || !routeInput.trim()}>
             {addingRoute ? "..." : "+"}
           </button>

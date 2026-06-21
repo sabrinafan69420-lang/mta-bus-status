@@ -1154,6 +1154,12 @@ body {
   position: relative;
 }
 
+.add-route-input-wrap {
+  flex: 1;
+  max-width: 280px;
+  position: relative;
+}
+
 .add-route-input {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -1162,8 +1168,7 @@ body {
   font-size: 13px;
   color: var(--text);
   outline: none;
-  flex: 1;
-  max-width: 280px;
+  width: 100%;
   font-family: inherit;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1178,6 +1183,43 @@ body {
   text-transform: none;
   letter-spacing: 0;
 }
+
+.route-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.route-suggestion {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.route-suggestion:last-child { border-bottom: none; }
+.route-suggestion:hover { background: var(--surface-2); }
 
 .add-route-btn {
   background: var(--accent);
