@@ -1,4 +1,4 @@
-import { TRACKED_ROUTES, cors, fetchBuffer, protobuf } from "./lib.js";
+import { cors, fetchBuffer, protobuf } from "./lib.js";
 
 export default async function handler(req, res) {
   cors(res);
@@ -12,9 +12,9 @@ export default async function handler(req, res) {
     for (const entity of feed.entity) {
       if (!entity.alert) continue;
       const alert = entity.alert;
-      const affectedRoutes = (alert.informedEntity || [])
+      const affectedRoutes = [...new Set((alert.informedEntity || [])
         .map((e) => (e.routeId || e.trip?.routeId || "").toUpperCase())
-        .filter((r) => TRACKED_ROUTES.includes(r));
+        .filter(Boolean))];
       if (affectedRoutes.length === 0) continue;
       const activePeriods = alert.activePeriod || [];
       const isActive = activePeriods.length === 0 || activePeriods.some((p) => {
@@ -30,6 +30,6 @@ export default async function handler(req, res) {
         activePeriods: activePeriods.map((p) => ({ start: p.start ? parseInt(p.start) : null, end: p.end ? parseInt(p.end) : null })),
       });
     }
-    res.json({ alerts, routes: TRACKED_ROUTES });
+    res.json({ alerts });
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
