@@ -5,10 +5,16 @@ import "./index.css";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN || "";
 
-const ROUTES = ["B6", "B8", "B15"];
-const ROUTE_COLORS = { B6: "#3b82f6", B8: "#f59e0b", B15: "#10b981" };
+const DEFAULT_ROUTES = ["B6", "B8", "B15"];
+const DEFAULT_COLORS = { B6: "#3b82f6", B8: "#f59e0b", B15: "#10b981" };
+const EXTRA_COLORS = ["#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#06b6d4", "#84cc16", "#e11d48", "#6366f1", "#a855f7", "#0ea5e9", "#d946ef", "#22d3ee", "#facc15"];
 const MAP_REFRESH = 15_000;
 const DATA_REFRESH = 30_000;
+
+function getRouteColor(route, index) {
+  if (DEFAULT_COLORS[route]) return DEFAULT_COLORS[route];
+  return EXTRA_COLORS[(index || 0) % EXTRA_COLORS.length];
+}
 
 function formatEffect(effect) {
   const map = {
@@ -36,7 +42,6 @@ function minsClass(mins) {
   return "";
 }
 
-// Speed-based color for bus markers
 function speedColor(speed) {
   if (speed == null || speed <= 0) return null;
   if (speed < 5) return "#ef4444";
@@ -44,12 +49,10 @@ function speedColor(speed) {
   return "#22c55e";
 }
 
-// --- Bus SVG marker ---
 function busSvg(color, bearing = 0) {
   return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><g transform="rotate(${bearing}, 18, 18)"><circle cx="18" cy="18" r="16" fill="${color}" opacity="0.25"/><circle cx="18" cy="18" r="12" fill="${color}"/><rect x="9" y="6" width="18" height="24" rx="5" fill="${color}" stroke="white" stroke-width="2"/><rect x="12" y="9" width="12" height="9" rx="2" fill="white" opacity="0.9"/><circle cx="13" cy="24" r="2" fill="white"/><circle cx="23" cy="24" r="2" fill="white"/><polygon points="18,2 16,6 20,6" fill="white" opacity="0.8"/></g></svg>`)}`;
 }
 
-// --- Alert Card ---
 function AlertCard({ alert }) {
   return (
     <div className="alert-card">
@@ -71,7 +74,6 @@ function AlertCard({ alert }) {
   );
 }
 
-// --- Arrival Row ---
 function ArrivalRow({ arrival }) {
   return (
     <div className="arrival-row">
@@ -106,7 +108,6 @@ function ArrivalRow({ arrival }) {
   );
 }
 
-// --- Stop Card ---
 function StopCard({ stop, isFavorite, onToggleFavorite }) {
   return (
     <div className="stop-card">
@@ -139,36 +140,21 @@ function StopCard({ stop, isFavorite, onToggleFavorite }) {
   );
 }
 
-// --- Bus Popup HTML ---
 function busPopupHtml(v, color) {
   const progressLabel = {
-    "in progress": "Moving",
-    normalProgress: "Moving",
-    delayed: "Delayed",
-    "stopped at stop": "At Stop",
-    "stopped at connection": "At Connection",
-    "stopped before stop": "At Stop",
-    "stopped on request": "On Request",
-    "off route": "Off Route",
-    noProgress: "Stopped",
-    unknown: "Unknown",
+    "in progress": "Moving", normalProgress: "Moving", delayed: "Delayed",
+    "stopped at stop": "At Stop", "stopped at connection": "At Connection",
+    "stopped before stop": "At Stop", "stopped on request": "On Request",
+    "off route": "Off Route", noProgress: "Stopped", unknown: "Unknown",
   };
   const status = progressLabel[v.progressRate] || v.progressRate || "";
   const statusClass = v.progressRate === "delayed" ? "delayed"
     : v.progressRate === "noProgress" ? "stopped"
-    : (v.progressRate === "in progress" || v.progressRate === "normalProgress") ? "active"
-    : "";
-
-  const progressStatusLabels = {
-    layover: "Layover — waiting at terminal",
-    spooking: "No GPS — following schedule",
-    prevTrip: "Serving previous trip",
-  };
+    : (v.progressRate === "in progress" || v.progressRate === "normalProgress") ? "active" : "";
+  const progressStatusLabels = { layover: "Layover — waiting at terminal", spooking: "No GPS — following schedule", prevTrip: "Serving previous trip" };
   const pStatus = v.progressStatus ? progressStatusLabels[v.progressStatus] || v.progressStatus : null;
-
   const occLabels = { seatsAvailable: "Seats Available", standingAvailable: "Standing OK", full: "Full" };
   const occupancy = v.occupancy ? occLabels[v.occupancy] || v.occupancy : null;
-
   const stops = v.onwardCalls || [];
   const stopsHtml = stops.length > 0 ? `
     <div class="bus-popup-stops">
@@ -180,8 +166,7 @@ function busPopupHtml(v, color) {
           <span class="bus-popup-stop-dist">${s.distance || (s.stopsAway != null ? s.stopsAway + " stops" : "—")}</span>
         </div>
       `).join("")}
-    </div>
-  ` : "";
+    </div>` : "";
 
   return `<div class="bus-popup-card">
     <div class="bus-popup-header" style="background:${color}">
@@ -200,8 +185,7 @@ function busPopupHtml(v, color) {
   </div>`;
 }
 
-// --- Search Results ---
-function SearchResults({ results, onSelect, onClose }) {
+function SearchResults({ results, onSelect, onClose, routeColors }) {
   if (!results || results.length === 0) return null;
   return (
     <div className="search-results">
@@ -211,7 +195,7 @@ function SearchResults({ results, onSelect, onClose }) {
           className="search-result"
           onClick={() => { onSelect(r); onClose(); }}
         >
-          <span className="search-result-route" style={{ background: ROUTE_COLORS[r.route] }}>{r.route}</span>
+          <span className="search-result-route" style={{ background: routeColors[r.route] || "#888" }}>{r.route}</span>
           <span className="search-result-name">{r.name}</span>
           <span className="search-result-id">{r.id}</span>
         </button>
@@ -220,8 +204,7 @@ function SearchResults({ results, onSelect, onClose }) {
   );
 }
 
-// --- Schedule Panel ---
-function SchedulePanel({ route, onClose }) {
+function SchedulePanel({ route, onClose, routeColors }) {
   const [schedule, setSchedule] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -230,19 +213,15 @@ function SchedulePanel({ route, onClose }) {
     setLoading(true);
     fetch(`/api/stops/${route}`)
       .then((r) => r.json())
-      .then((data) => {
-        setSchedule(data.stops || []);
-        setLoading(false);
-      })
+      .then((data) => { setSchedule(data.stops || []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [route]);
 
   if (!route) return null;
-
   return (
     <div className="schedule-panel">
       <div className="schedule-header">
-        <span className="schedule-route" style={{ background: ROUTE_COLORS[route] }}>{route}</span>
+        <span className="schedule-route" style={{ background: routeColors[route] || "#888" }}>{route}</span>
         <span className="schedule-title">Route Stops</span>
         <button className="schedule-close" onClick={onClose}>✕</button>
       </div>
@@ -267,7 +246,6 @@ function SchedulePanel({ route, onClose }) {
   );
 }
 
-// --- Notification Banner ---
 function NotificationBanner({ permission, onRequest }) {
   if (permission === "granted" || permission === "denied") return null;
   return (
@@ -279,7 +257,7 @@ function NotificationBanner({ permission, onRequest }) {
 }
 
 // --- Map Component ---
-function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, onSelectStop }) {
+function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRoutes, routeColors }) {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef({});
@@ -311,11 +289,11 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, onSelectSto
     } catch {}
   }, []);
 
-  // Update polylines with glow effect
+  // Update polylines
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReadyRef.current) return;
-    ROUTES.forEach((route) => {
+    trackedRoutes.forEach((route) => {
       const sourceId = `route-${route}`;
       const layerGlow = `route-glow-${route}`;
       const layerLine = `route-layer-${route}`;
@@ -331,15 +309,15 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, onSelectSto
       map.addLayer({
         id: layerGlow, type: "line", source: sourceId,
         layout: { visibility: visible ? "visible" : "none" },
-        paint: { "line-color": ROUTE_COLORS[route], "line-width": 10, "line-opacity": 0.15, "line-blur": 6 },
+        paint: { "line-color": routeColors[route], "line-width": 10, "line-opacity": 0.15, "line-blur": 6 },
       });
       map.addLayer({
         id: layerLine, type: "line", source: sourceId,
         layout: { visibility: visible ? "visible" : "none" },
-        paint: { "line-color": ROUTE_COLORS[route], "line-width": 3.5, "line-opacity": 0.85 },
+        paint: { "line-color": routeColors[route], "line-width": 3.5, "line-opacity": 0.85 },
       });
     });
-  }, [polylines, visibleRoutes, removeLayerSafe]);
+  }, [polylines, visibleRoutes, trackedRoutes, routeColors, removeLayerSafe]);
 
   // Update stop markers
   useEffect(() => {
@@ -351,16 +329,17 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, onSelectSto
         delete markersRef.current[key];
       }
     });
-    ROUTES.forEach((route) => {
+    trackedRoutes.forEach((route) => {
       if (!visibleRoutes.includes(route)) return;
       const routeStops = stops[route] || [];
+      const color = routeColors[route] || "#888";
       routeStops.forEach((stop) => {
         if (stop.lat == null || stop.lon == null) return;
         const el = document.createElement("div");
         el.className = "stop-marker";
-        el.style.cssText = `width:7px;height:7px;border-radius:50%;background:${ROUTE_COLORS[route]};border:1.5px solid rgba(255,255,255,0.8);cursor:pointer;transition:box-shadow 0.15s,opacity 0.15s;transform-origin:center center;`;
+        el.style.cssText = `width:7px;height:7px;border-radius:50%;background:${color};border:1.5px solid rgba(255,255,255,0.8);cursor:pointer;transition:box-shadow 0.15s,opacity 0.15s;transform-origin:center center;`;
         el.addEventListener("mouseenter", () => {
-          el.style.boxShadow = `0 0 0 3px ${ROUTE_COLORS[route]}80`;
+          el.style.boxShadow = `0 0 0 3px ${color}80`;
           el.style.opacity = "1";
         });
         el.addEventListener("mouseleave", () => {
@@ -417,9 +396,9 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, onSelectSto
         markersRef.current[`stop-${route}-${stop.id}`] = marker;
       });
     });
-  }, [stops, visibleRoutes]);
+  }, [stops, visibleRoutes, trackedRoutes, routeColors]);
 
-  // Update bus markers — speed coloring + smooth transitions
+  // Update bus markers
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReadyRef.current) return;
@@ -428,7 +407,7 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, onSelectSto
       if (!visibleRoutes.includes(v.route)) return;
       const key = `bus-${v.id}`;
       const sColor = speedColor(v.speed);
-      const color = sColor || ROUTE_COLORS[v.route] || "#888";
+      const color = sColor || routeColors[v.route] || "#888";
       if (markersRef.current[key]) {
         const marker = markersRef.current[key];
         marker.setLngLat([v.lon, v.lat], { duration: 1400 });
@@ -451,7 +430,7 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, onSelectSto
         if (popupRef.current) popupRef.current.remove();
         const popup = new mapboxgl.Popup({ offset: 16, className: "bus-popup" })
           .setLngLat([v.lon, v.lat])
-          .setHTML(busPopupHtml(v, ROUTE_COLORS[v.route] || "#888"))
+          .setHTML(busPopupHtml(v, routeColors[v.route] || "#888"))
           .addTo(map);
         popup._busId = v.id;
         popupRef.current = popup;
@@ -468,9 +447,8 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, onSelectSto
         }
       }
     });
-  }, [vehicles, visibleRoutes]);
+  }, [vehicles, visibleRoutes, routeColors]);
 
-  // Fit bounds
   const fitAllBuses = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -481,7 +459,6 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, onSelectSto
     map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 800 });
   }, [vehicles, visibleRoutes]);
 
-  // Geolocation
   const goToUserLocation = useCallback(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -501,7 +478,6 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, onSelectSto
     );
   }, []);
 
-  // Zoom to stop (for search)
   const zoomToStop = useCallback((stop) => {
     const map = mapRef.current;
     if (!map) return;
@@ -566,30 +542,49 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, onSelectSto
 
 // --- Main App ---
 export default function App() {
+  const [trackedRoutes, setTrackedRoutes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("mta-routes")) || [...DEFAULT_ROUTES]; } catch { return [...DEFAULT_ROUTES]; }
+  });
+  const [routeStops, setRouteStops] = useState({});
+  const [polylines, setPolylines] = useState({});
   const [alerts, setAlerts] = useState([]);
   const [stops, setStops] = useState([]);
   const [vehicles, setVehicles] = useState([]);
-  const [polylines, setPolylines] = useState({});
-  const [routeStops, setRouteStops] = useState({});
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
   const [activeRoute, setActiveRoute] = useState("ALL");
-  const [visibleRoutes, setVisibleRoutes] = useState([...ROUTES]);
-  const [mapLoaded, setMapLoaded] = useState(false);
+  const [visibleRoutes, setVisibleRoutes] = useState([...trackedRoutes]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
+  const [routeInput, setRouteInput] = useState("");
+  const [routeError, setRouteError] = useState("");
+  const [addingRoute, setAddingRoute] = useState(false);
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
   );
   const [favorites, setFavorites] = useState(() => {
     try { return JSON.parse(localStorage.getItem("mta-favorites") || "[]"); } catch { return []; }
   });
-  const [activePanel, setActivePanel] = useState("arrivals");
   const [scheduleRoute, setScheduleRoute] = useState(null);
   const [mobileSheet, setMobileSheet] = useState("arrivals");
   const searchRef = useRef(null);
+  const routeInputRef = useRef(null);
   const notifTimersRef = useRef({});
+
+  // Build color map
+  const routeColors = useMemo(() => {
+    const colors = { ...DEFAULT_COLORS };
+    trackedRoutes.forEach((r, i) => {
+      if (!colors[r]) colors[r] = getRouteColor(r, i);
+    });
+    return colors;
+  }, [trackedRoutes]);
+
+  // Persist tracked routes
+  useEffect(() => {
+    localStorage.setItem("mta-routes", JSON.stringify(trackedRoutes));
+  }, [trackedRoutes]);
 
   const toggleRoute = (route) => {
     setVisibleRoutes((prev) =>
@@ -598,7 +593,7 @@ export default function App() {
   };
 
   const vehicleCounts = {};
-  ROUTES.forEach((r) => { vehicleCounts[r] = 0; });
+  trackedRoutes.forEach((r) => { vehicleCounts[r] = 0; });
   vehicles.forEach((v) => { if (vehicleCounts[v.route] !== undefined) vehicleCounts[v.route]++; });
 
   const handleFitAll = () => {
@@ -647,14 +642,13 @@ export default function App() {
 
   const isFav = (stop) => favorites.some((f) => f.stopId === stop.stopId && f.route === stop.route);
 
-  // Sort stops: favorites first
   const sortedStops = useMemo(() => {
     const fav = stops.filter((s) => isFav(s));
     const rest = stops.filter((s) => !isFav(s));
     return [...fav, ...rest];
   }, [stops, favorites]);
 
-  // Browser notifications
+  // Notifications
   const requestNotifPermission = () => {
     if (typeof Notification !== "undefined") {
       Notification.requestPermission().then((p) => setNotifPermission(p));
@@ -679,17 +673,62 @@ export default function App() {
     });
   }, [stops, notifPermission]);
 
-  // Schedule
   const handleScheduleClick = (route) => {
     setScheduleRoute(scheduleRoute === route ? null : route);
   };
 
+  // Add a new route
+  const handleAddRoute = async () => {
+    const input = routeInput.trim().toUpperCase();
+    if (!input) return;
+    if (trackedRoutes.includes(input)) {
+      setRouteError("Already tracking this route");
+      setTimeout(() => setRouteError(""), 2000);
+      return;
+    }
+    setAddingRoute(true);
+    setRouteError("");
+    try {
+      const [polRes, stopRes] = await Promise.all([
+        fetch(`/api/polylines/${input}`),
+        fetch(`/api/stops/${input}`),
+      ]);
+      const polData = await polRes.json();
+      const stopData = await stopRes.json();
+      if (!polData.coordinates || polData.coordinates.length === 0) {
+        setRouteError(`Route "${input}" not found`);
+        setTimeout(() => setRouteError(""), 2000);
+        setAddingRoute(false);
+        return;
+      }
+      setPolylines((prev) => ({ ...prev, [input]: polData.coordinates }));
+      setRouteStops((prev) => ({ ...prev, [input]: stopData.stops || [] }));
+      setTrackedRoutes((prev) => [...prev, input]);
+      setVisibleRoutes((prev) => [...prev, input]);
+      setRouteInput("");
+    } catch {
+      setRouteError("Failed to add route");
+      setTimeout(() => setRouteError(""), 2000);
+    }
+    setAddingRoute(false);
+  };
+
+  const handleRemoveRoute = (route) => {
+    if (DEFAULT_ROUTES.includes(route)) return;
+    setTrackedRoutes((prev) => prev.filter((r) => r !== route));
+    setVisibleRoutes((prev) => prev.filter((r) => r !== route));
+    setPolylines((prev) => { const n = { ...prev }; delete n[route]; return n; });
+    setRouteStops((prev) => { const n = { ...prev }; delete n[route]; return n; });
+  };
+
+  // Fetch data
   const fetchData = useCallback(async () => {
     try {
+      const routesQuery = trackedRoutes.join(",");
       const [alertsRes, stopsRes, vehiclesRes] = await Promise.all([
         fetch("/api/alerts"),
         fetch("/api/arrivals"),
-        fetch("/api/vehicles"),
+        fetch(`/api/vehicles?routes=${encodeURIComponent(routesQuery)}`),
       ]);
       const alertsData = await alertsRes.json();
       const stopsData = await stopsRes.json();
@@ -703,12 +742,12 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [trackedRoutes]);
 
   const fetchPolylinesAndStops = useCallback(async () => {
     try {
       const results = await Promise.all(
-        ROUTES.map(async (route) => {
+        trackedRoutes.map(async (route) => {
           const [polRes, stopRes] = await Promise.all([
             fetch(`/api/polylines/${route}`),
             fetch(`/api/stops/${route}`),
@@ -723,18 +762,17 @@ export default function App() {
       results.forEach((r) => { pol[r.route] = r.polylines; stp[r.route] = r.stops; });
       setPolylines(pol);
       setRouteStops(stp);
-      setMapLoaded(true);
     } catch (err) {
       console.error("Polylines/stops fetch failed:", err);
-      setMapLoaded(true);
     }
-  }, []);
+  }, [trackedRoutes]);
 
   useEffect(() => {
+    setLoading(true);
     fetchData();
     fetchPolylinesAndStops();
     const dataInterval = setInterval(fetchData, DATA_REFRESH);
-    const mapInterval = setInterval(fetchData, MAP_REFRESH);
+    const mapInterval = setInterval(fetchPolylinesAndStops, MAP_REFRESH);
     return () => { clearInterval(dataInterval); clearInterval(mapInterval); };
   }, [fetchData, fetchPolylinesAndStops]);
 
@@ -742,6 +780,7 @@ export default function App() {
   useEffect(() => {
     const handler = (e) => {
       if (searchRef.current && !searchRef.current.contains(e.target)) setShowSearch(false);
+      if (routeInputRef.current && !routeInputRef.current.contains(e.target)) setRouteError("");
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -762,14 +801,12 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Notification Banner */}
       <NotificationBanner permission={notifPermission} onRequest={requestNotifPermission} />
 
-      {/* Header */}
       <div className="header">
         <div className="header-left">
           <div className="mta-badge">MTA</div>
-          <h1>Bus Status <span>/ B6 · B8 · B15</span></h1>
+          <h1>Bus Status <span>/ {trackedRoutes.join(" · ")}</span></h1>
         </div>
         <div className="refresh-info">
           {lastRefresh && <>Updated {lastRefresh.toLocaleTimeString()}</>}
@@ -781,7 +818,6 @@ export default function App() {
         <div className="map-header">
           <div className="section-title" style={{ margin: 0 }}>Live Map</div>
           <div className="map-controls">
-            {/* Search */}
             <div className="search-container" ref={searchRef}>
               <input
                 className="search-input"
@@ -792,7 +828,7 @@ export default function App() {
                 onFocus={() => setShowSearch(true)}
               />
               {showSearch && searchResults.length > 0 && (
-                <SearchResults results={searchResults} onSelect={handleSearchSelect} onClose={() => { setShowSearch(false); setSearchQuery(""); }} />
+                <SearchResults results={searchResults} onSelect={handleSearchSelect} onClose={() => { setShowSearch(false); setSearchQuery(""); }} routeColors={routeColors} />
               )}
             </div>
             <button className="fit-all-btn" onClick={handleGoToMe} title="My location">
@@ -803,16 +839,19 @@ export default function App() {
               Fit All
             </button>
             <div className="map-route-toggles">
-              {ROUTES.map((r) => (
+              {trackedRoutes.map((r) => (
                 <button
                   key={r}
                   className={`route-toggle ${visibleRoutes.includes(r) ? "active" : ""}`}
-                  style={{ "--route-color": ROUTE_COLORS[r] }}
+                  style={{ "--route-color": routeColors[r] }}
                   onClick={() => toggleRoute(r)}
                 >
-                  <span className="route-dot" style={{ background: ROUTE_COLORS[r] }} />
+                  <span className="route-dot" style={{ background: routeColors[r] }} />
                   {r}
                   <span className="route-count">{vehicleCounts[r]}</span>
+                  {!DEFAULT_ROUTES.includes(r) && (
+                    <span className="route-remove" onClick={(e) => { e.stopPropagation(); handleRemoveRoute(r); }}>✕</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -824,6 +863,8 @@ export default function App() {
           stops={routeStops}
           alerts={alerts}
           visibleRoutes={visibleRoutes}
+          trackedRoutes={trackedRoutes}
+          routeColors={routeColors}
         />
         <div className="map-legend">
           <span className="legend-item"><span className="legend-dot" style={{ background: "#22c55e" }} /> Fast</span>
@@ -835,16 +876,35 @@ export default function App() {
         </div>
       </div>
 
-      {/* Mobile bottom sheet tabs */}
+      {/* Mobile tabs */}
       <div className="mobile-tabs">
         <button className={`mobile-tab ${mobileSheet === "arrivals" ? "active" : ""}`} onClick={() => setMobileSheet("arrivals")}>Arrivals</button>
         <button className={`mobile-tab ${mobileSheet === "alerts" ? "active" : ""}`} onClick={() => setMobileSheet("alerts")}>Alerts ({filteredAlerts.length})</button>
         <button className={`mobile-tab ${mobileSheet === "schedule" ? "active" : ""}`} onClick={() => setMobileSheet("schedule")}>Schedule</button>
       </div>
 
+      {/* Add Route */}
+      <div className="add-route-section">
+        <div className="add-route-row" ref={routeInputRef}>
+          <input
+            className="add-route-input"
+            type="text"
+            placeholder="Add route (e.g. B44, Q58, M15)..."
+            value={routeInput}
+            onChange={(e) => setRouteInput(e.target.value.toUpperCase())}
+            onKeyDown={(e) => { if (e.key === "Enter") handleAddRoute(); }}
+            disabled={addingRoute}
+          />
+          <button className="add-route-btn" onClick={handleAddRoute} disabled={addingRoute || !routeInput.trim()}>
+            {addingRoute ? "..." : "+"}
+          </button>
+          {routeError && <div className="add-route-error">{routeError}</div>}
+        </div>
+      </div>
+
       {/* Desktop route filter pills */}
       <div className="route-pills desktop-only">
-        {["ALL", ...ROUTES].map((r) => (
+        {["ALL", ...trackedRoutes].map((r) => (
           <button key={r} className={`route-pill ${activeRoute === r ? "active" : ""}`} onClick={() => setActiveRoute(r)}>
             {r === "ALL" ? "All Routes" : r}
           </button>
@@ -853,7 +913,6 @@ export default function App() {
 
       {/* Content panels */}
       <div className={`content-panels ${mobileSheet}`}>
-        {/* Arrivals */}
         <div className={`panel ${mobileSheet === "arrivals" ? "mobile-visible" : ""}`}>
           <div className="section-title">Live Arrivals {favorites.length > 0 && <span className="count">({favorites.length} starred)</span>}</div>
           <div className="arrivals-grid">
@@ -863,20 +922,8 @@ export default function App() {
           </div>
         </div>
 
-        {/* Alerts */}
         <div className={`panel ${mobileSheet === "alerts" ? "mobile-visible" : ""}`}>
-          <div className="section-title">
-            Service Alerts <span className="count">({filteredAlerts.length})</span>
-          </div>
-          <div className="desktop-only">
-            <div className="route-pills">
-              {["ALL", ...ROUTES].map((r) => (
-                <button key={r} className={`route-pill ${activeRoute === r ? "active" : ""}`} onClick={() => setActiveRoute(r)}>
-                  {r === "ALL" ? "All Routes" : r}
-                </button>
-              ))}
-            </div>
-          </div>
+          <div className="section-title">Service Alerts <span className="count">({filteredAlerts.length})</span></div>
           {filteredAlerts.length === 0 ? (
             <div className="no-alerts">
               <div className="no-alerts-icon">&#10003;</div>
@@ -892,24 +939,23 @@ export default function App() {
           )}
         </div>
 
-        {/* Schedule */}
         <div className={`panel ${mobileSheet === "schedule" ? "mobile-visible" : ""}`}>
           <div className="section-title">Route Schedule</div>
           <div className="schedule-route-buttons">
-            {ROUTES.map((r) => (
+            {trackedRoutes.map((r) => (
               <button
                 key={r}
                 className={`schedule-route-btn ${scheduleRoute === r ? "active" : ""}`}
-                style={{ "--route-color": ROUTE_COLORS[r] }}
+                style={{ "--route-color": routeColors[r] }}
                 onClick={() => handleScheduleClick(r)}
               >
-                <span className="route-dot" style={{ background: ROUTE_COLORS[r] }} />
+                <span className="route-dot" style={{ background: routeColors[r] }} />
                 {r}
                 <span className="route-count">{routeStops[r]?.length || 0} stops</span>
               </button>
             ))}
           </div>
-          <SchedulePanel route={scheduleRoute} onClose={() => setScheduleRoute(null)} />
+          <SchedulePanel route={scheduleRoute} onClose={() => setScheduleRoute(null)} routeColors={routeColors} />
         </div>
       </div>
 

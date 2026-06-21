@@ -1,4 +1,4 @@
-import { TRACKED_ROUTES, cors, fetchJSON, SIRI_BASE, API_KEY } from "./lib.js";
+import { DEFAULT_ROUTES, cors, fetchJSON, SIRI_BASE, API_KEY } from "./lib.js";
 
 async function fetchVehicleMonitoring(lineRef) {
   let url = `${SIRI_BASE}/siri/vehicle-monitoring.json?key=${API_KEY}&version=2&OperatorRef=MTA&VehicleMonitoringDetailLevel=calls&MaximumNumberOfCallsOnwards=5`;
@@ -9,7 +9,9 @@ async function fetchVehicleMonitoring(lineRef) {
 export default async function handler(req, res) {
   cors(res);
   try {
-    const results = await Promise.all(TRACKED_ROUTES.map(async (route) => {
+    const routesParam = req.query.routes;
+    const routes = routesParam ? routesParam.split(",").map(r => r.toUpperCase().trim()).filter(Boolean) : DEFAULT_ROUTES;
+    const results = await Promise.all(routes.map(async (route) => {
       try {
         const data = await fetchVehicleMonitoring(route);
         const delivery = data?.Siri?.ServiceDelivery?.VehicleMonitoringDelivery;

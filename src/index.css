@@ -1142,6 +1142,85 @@ body {
   display: none;
 }
 
+/* === Add Route === */
+.add-route-section {
+  margin-bottom: 16px;
+}
+
+.add-route-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  position: relative;
+}
+
+.add-route-input {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  flex: 1;
+  max-width: 280px;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.add-route-input:focus {
+  border-color: var(--accent);
+}
+
+.add-route-input::placeholder {
+  color: var(--text-dim);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.add-route-btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.add-route-btn:hover { opacity: 0.85; }
+.add-route-btn:disabled { opacity: 0.4; cursor: default; }
+
+.add-route-error {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #ef4444;
+  white-space: nowrap;
+}
+
+.route-remove {
+  font-size: 10px;
+  opacity: 0.5;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: opacity 0.15s;
+}
+
+.route-remove:hover {
+  opacity: 1;
+}
+
 /* === Mobile responsive === */
 @media (max-width: 768px) {
   .app {

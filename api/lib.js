@@ -14,7 +14,7 @@ export const FAVORITES = [
   { stopId: "300541", name: "Glenwood RD/Nostrand Av", route: "B6" },
 ];
 
-export const TRACKED_ROUTES = ["B6", "B8", "B15"];
+export const DEFAULT_ROUTES = ["B6", "B8", "B15"];
 
 export function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
