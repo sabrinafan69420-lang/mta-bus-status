@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "./index.css";
@@ -439,8 +439,8 @@ function NotificationBanner({ permission, onRequest }) {
 function NearbyStops({ stops, routeColors, userLocation, onLocate }) {
   const [nearby, setNearby] = useState([]);
   useEffect(() => {
-    if (!userLocation || !stops.length) return;
-    const withDist = stops.map(s => ({
+    if (!userLocation || !Array.isArray(stops) || stops.length === 0) return;
+    const withDist = stops.filter(s => s?.lat != null && s?.lon != null).map(s => ({
       ...s,
       dist: haversineMeters(userLocation.lat, userLocation.lng, s.lat, s.lon),
     }));
@@ -503,9 +503,9 @@ function TripPlanner({ trackedRoutes, routeColors }) {
       ]);
       const oData = await oRes.json();
       const dData = await dRes.json();
-      const oCoords = oData.features?.[0]?.center;
-      const dCoords = dData.features?.[0]?.center;
-      if (!oCoords || !dCoords) { setError("Could not find locations"); setLoading(false); return; }
+      const oCoords = oData?.features?.[0]?.center;
+      const dCoords = dData?.features?.[0]?.center;
+      if (!oCoords || !dCoords) { setError("Could not find one or both locations"); setLoading(false); return; }
       const routesQuery = trackedRoutes.join(",");
       const res = await fetch(`/api/trip?originLat=${oCoords[1]}&originLng=${oCoords[0]}&destLat=${dCoords[1]}&destLng=${dCoords[0]}&routes=${encodeURIComponent(routesQuery)}`);
       const data = await res.json();
@@ -568,10 +568,10 @@ function RouteStats({ stops, vehicles, trackedRoutes, routeColors }) {
     return trackedRoutes.map(route => {
       const routeVehicles = vehicles.filter(v => v.route === route);
       const routeArrivals = [];
-      stops.forEach(stop => {
-        if (stop.route !== route) return;
+      (Array.isArray(stops) ? stops : []).forEach(stop => {
+        if (stop?.route !== route) return;
         (stop.arrivals || []).forEach(a => {
-          if (a.minutes != null) routeArrivals.push(a);
+          if (a?.minutes != null) routeArrivals.push(a);
         });
       });
       const totalDelay = routeArrivals.reduce((sum, a) => sum + (a.delay || 0), 0);
@@ -699,7 +699,7 @@ function RouteCompare({ trackedRoutes, routeColors, vehicles, stops }) {
     if (!routeA) return null;
     const v = vehicles.filter(x => x.route === routeA);
     const arr = [];
-    stops.forEach(s => { if (s.route === routeA) (s.arrivals || []).forEach(a => arr.push(a)); });
+    (Array.isArray(stops) ? stops : []).forEach(s => { if (s?.route === routeA) (s.arrivals || []).forEach(a => arr.push(a)); });
     const avgDelay = arr.length > 0 ? arr.reduce((sum, a) => sum + (a.delay || 0), 0) / arr.length : 0;
     const onTime = arr.length > 0 ? arr.filter(a => (a.delay || 0) <= 300).length / arr.length * 100 : 100;
     return { busCount: v.length, avgDelay: Math.round(avgDelay / 60), onTimePct: Math.round(onTime), arrivalCount: arr.length };
@@ -709,7 +709,7 @@ function RouteCompare({ trackedRoutes, routeColors, vehicles, stops }) {
     if (!routeB) return null;
     const v = vehicles.filter(x => x.route === routeB);
     const arr = [];
-    stops.forEach(s => { if (s.route === routeB) (s.arrivals || []).forEach(a => arr.push(a)); });
+    (Array.isArray(stops) ? stops : []).forEach(s => { if (s?.route === routeB) (s.arrivals || []).forEach(a => arr.push(a)); });
     const avgDelay = arr.length > 0 ? arr.reduce((sum, a) => sum + (a.delay || 0), 0) / arr.length : 0;
     const onTime = arr.length > 0 ? arr.filter(a => (a.delay || 0) <= 300).length / arr.length * 100 : 100;
     return { busCount: v.length, avgDelay: Math.round(avgDelay / 60), onTimePct: Math.round(onTime), arrivalCount: arr.length };
@@ -756,28 +756,32 @@ function RouteCompare({ trackedRoutes, routeColors, vehicles, stops }) {
 // === Feature: Past Departures ===
 function PastDepartures({ departures }) {
   const [open, setOpen] = useState(false);
-  if (departures.length === 0) return null;
+  const safeDepartures = Array.isArray(departures) ? departures : [];
+  if (safeDepartures.length === 0) return null;
   return (
     <div className="past-departures">
       <button className="past-dep-toggle" onClick={() => setOpen(!open)}>
-        🕐 Recent Snapshots ({departures.length})
+        🕐 Recent Snapshots ({safeDepartures.length})
       </button>
       {open && (
         <div className="past-dep-list">
-          {departures.slice(0, 10).map((snap, i) => (
-            <div key={i} className="past-dep-snap">
-              <div className="past-dep-time">{new Date(snap.ts).toLocaleTimeString()}</div>
-              <div className="past-dep-arrivals">
-                {snap.arrivals.slice(0, 5).map((a, j) => (
-                  <span key={j} className="past-dep-arrival">
-                    <span className="past-dep-route" style={{ background: snap.routeColors?.[a.route] || "#888" }}>{a.route}</span>
-                    {a.minutes != null ? `${a.minutes}m` : "--"}
-                  </span>
-                ))}
-                {snap.arrivals.length > 5 && <span className="past-dep-more">+{snap.arrivals.length - 5} more</span>}
+          {safeDepartures.slice(0, 10).map((snap, i) => {
+            const arrivals = Array.isArray(snap?.arrivals) ? snap.arrivals : [];
+            return (
+              <div key={i} className="past-dep-snap">
+                <div className="past-dep-time">{snap?.ts ? new Date(snap.ts).toLocaleTimeString() : "?"}</div>
+                <div className="past-dep-arrivals">
+                  {arrivals.slice(0, 5).map((a, j) => (
+                    <span key={j} className="past-dep-arrival">
+                      <span className="past-dep-route" style={{ background: snap?.routeColors?.[a.route] || "#888" }}>{a.route}</span>
+                      {a.minutes != null ? `${a.minutes}m` : "--"}
+                    </span>
+                  ))}
+                  {arrivals.length > 5 && <span className="past-dep-more">+{arrivals.length - 5} more</span>}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -787,8 +791,8 @@ function PastDepartures({ departures }) {
 // === Feature: System Stats ===
 function SystemStats({ vehicles, stops, alerts, trackedRoutes }) {
   const totalBuses = vehicles.length;
-  const totalStops = Object.values(stops).flat().length;
-  const totalArrivals = stops.reduce((sum, s) => sum + (s.arrivals?.length || 0), 0);
+  const totalStops = (Array.isArray(stops) ? stops : []).length;
+  const totalArrivals = (Array.isArray(stops) ? stops : []).reduce((sum, s) => sum + (s?.arrivals?.length || 0), 0);
   const delayedBuses = vehicles.filter(v => v.progressRate === "delayed").length;
   const avgSpeed = vehicles.filter(v => v.speed > 0).reduce((sum, v) => sum + v.speed, 0) / (vehicles.filter(v => v.speed > 0).length || 1);
   const fullBuses = vehicles.filter(v => v.occupancy === "full").length;
@@ -839,32 +843,39 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
   const markersRef = useRef({});
   const popupRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState(null);
   const userMarkerRef = useRef(null);
   const walkingSourceRef = useRef(null);
 
   useEffect(() => {
     if (mapRef.current) return;
-    const map = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/dark-v11",
-      center: [-73.94, 40.65],
-      zoom: 12.5,
-      pitch: 0,
-      attributionControl: false,
-    });
-    map.addControl(new mapboxgl.NavigationControl(), "top-right");
-    map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-left");
-    mapRef.current = map;
-    map.on("load", () => setMapReady(true));
-    let moveTimer = null;
-    map.on("moveend", () => {
-      if (moveTimer) clearTimeout(moveTimer);
-      moveTimer = setTimeout(() => {
-        const c = map.getCenter();
-        onMapMove?.({ lat: c.lat, lng: c.lng, zoom: map.getZoom() });
-      }, 300);
-    });
-    return () => { if (moveTimer) clearTimeout(moveTimer); map.remove(); };
+    try {
+      const map = new mapboxgl.Map({
+        container: mapContainer.current,
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [-73.94, 40.65],
+        zoom: 12.5,
+        pitch: 0,
+        attributionControl: false,
+      });
+      map.addControl(new mapboxgl.NavigationControl(), "top-right");
+      map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-left");
+      mapRef.current = map;
+      map.on("load", () => setMapReady(true));
+      map.on("error", (e) => { console.warn("Mapbox error:", e.error?.message || e); });
+      let moveTimer = null;
+      map.on("moveend", () => {
+        if (moveTimer) clearTimeout(moveTimer);
+        moveTimer = setTimeout(() => {
+          const c = map.getCenter();
+          onMapMove?.({ lat: c.lat, lng: c.lng, zoom: map.getZoom() });
+        }, 300);
+      });
+      return () => { if (moveTimer) clearTimeout(moveTimer); map.remove(); };
+    } catch (err) {
+      console.error("Map init failed:", err);
+      setMapError(err.message || "Map failed to load");
+    }
   }, []);
 
   const removeLayerSafe = useCallback((map, layerId, sourceId) => {
@@ -1218,6 +1229,10 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
     }
   }, [fitAllBuses, goToUserLocation, zoomToStop]);
 
+  if (mapError) {
+    return <div className="map-container" style={{ display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", fontSize: 13 }}>Map failed to load: {mapError}</div>;
+  }
+
   return <div ref={mapContainer} className="map-container" />;
 }
 
@@ -1345,14 +1360,19 @@ export default function App() {
   useEffect(() => {
     if (!soundEnabled) return;
     stops.forEach((stop) => {
-      stop.arrivals?.forEach((a) => {
+      (stop.arrivals || []).forEach((a) => {
         if (a.minutes === 2) {
           const key = `${stop.stopId}-${a.route}-${a.destination}`;
           if (!notifTimersRef.current[key]) {
             notifTimersRef.current[key] = true;
             try {
-              if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+              if (!audioCtxRef.current) {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) audioCtxRef.current = new AudioCtx();
+              }
+              if (!audioCtxRef.current) return;
               const ctx = audioCtxRef.current;
+              if (ctx.state === "suspended") ctx.resume();
               const osc = ctx.createOscillator();
               const gain = ctx.createGain();
               osc.connect(gain);
@@ -1554,14 +1574,10 @@ export default function App() {
 
   // Feature 6: Load saved view
   const handleLoadView = (view) => {
+    if (!view?.routes) return;
     setTrackedRoutes(view.routes);
     setVisibleRoutes([...view.routes]);
     setMapState({ lat: view.lat, lng: view.lng, zoom: view.zoom });
-    const mapEl = document.querySelector(".map-container");
-    if (mapEl) {
-      const map = mapEl.__mb_map || mapEl._map;
-      if (map) map.flyTo({ center: [view.lng, view.lat], zoom: view.zoom, duration: 1000 });
-    }
   };
 
   // Fetch data
