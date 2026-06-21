@@ -1587,7 +1587,7 @@ export default function App() {
       const routesQuery = trackedRoutes.join(",");
       const [alertsRes, stopsRes, vehiclesRes] = await Promise.all([
         fetch("/api/alerts"),
-        fetch("/api/arrivals"),
+        fetch(`/api/arrivals?routes=${encodeURIComponent(routesQuery)}`),
         fetch(`/api/vehicles?routes=${encodeURIComponent(routesQuery)}`),
       ]);
       const alertsData = await alertsRes.json();
