@@ -889,7 +889,7 @@ export default function App() {
           <input
             className="add-route-input"
             type="text"
-            placeholder="Add route (e.g. B44, Q58, M15)..."
+            placeholder="Add route (e.g. B44-SBS, BxM1, Q58)..."
             value={routeInput}
             onChange={(e) => setRouteInput(e.target.value.toUpperCase())}
             onKeyDown={(e) => { if (e.key === "Enter") handleAddRoute(); }}
@@ -900,6 +900,7 @@ export default function App() {
           </button>
           {routeError && <div className="add-route-error">{routeError}</div>}
         </div>
+        <div className="add-route-hint">SBS: B44-SBS · Express: BxM1, BM2 · Local: Q58, M15</div>
       </div>
 
       {/* Desktop route filter pills */}
