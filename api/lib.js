@@ -28,6 +28,11 @@ export function routeApiId(route) {
   return `MTA NYCT_${r}`;
 }
 
+// OneBusAway doesn't know about -SBS suffix — strip it for polylines/stops
+export function oneBusAwayId(route) {
+  return routeApiId(route.replace(/-SBS$/i, ""));
+}
+
 export async function fetchJSON(url, timeoutMs = 10000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
