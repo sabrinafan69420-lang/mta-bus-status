@@ -295,11 +295,11 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes }) {
 
         const el = document.createElement("div");
         el.className = "stop-marker";
-        el.style.cssText = `width:7px;height:7px;border-radius:50%;background:${ROUTE_COLORS[route]};border:1.5px solid rgba(255,255,255,0.8);cursor:pointer;transition:transform 0.15s;`;
+        el.style.cssText = `width:7px;height:7px;border-radius:50%;background:${ROUTE_COLORS[route]};border:1.5px solid rgba(255,255,255,0.8);cursor:pointer;transition:box-shadow 0.15s,opacity 0.15s;transform-origin:center center;`;
 
         el.addEventListener("mouseenter", () => {
-          el.style.transform = "scale(1.8)";
-          el.style.zIndex = "10";
+          el.style.boxShadow = `0 0 0 3px ${ROUTE_COLORS[route]}80`;
+          el.style.opacity = "1";
           if (popupRef.current) popupRef.current.remove();
           popupRef.current = new mapboxgl.Popup({ offset: 10, closeButton: false, maxWidth: "220px" })
             .setLngLat([stop.lon, stop.lat])
@@ -307,8 +307,8 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes }) {
             .addTo(map);
         });
         el.addEventListener("mouseleave", () => {
-          el.style.transform = "scale(1)";
-          el.style.zIndex = "";
+          el.style.boxShadow = "none";
+          el.style.opacity = "0.7";
           if (popupRef.current) popupRef.current.remove();
         });
 
@@ -352,13 +352,13 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes }) {
       // Create new marker
       const el = document.createElement("div");
       el.className = "bus-marker";
-      el.style.cssText = "width:36px;height:36px;cursor:pointer;transition:transform 0.2s;";
+      el.style.cssText = "width:36px;height:36px;cursor:pointer;transition:filter 0.2s;transform-origin:center center;";
       el.style.backgroundImage = `url("${busSvg(color, v.bearing)}")`;
       el.style.backgroundSize = "contain";
       el.style.backgroundRepeat = "no-repeat";
 
-      el.addEventListener("mouseenter", () => { el.style.transform = "scale(1.15)"; });
-      el.addEventListener("mouseleave", () => { el.style.transform = "scale(1)"; });
+      el.addEventListener("mouseenter", () => { el.style.filter = "brightness(1.3) drop-shadow(0 0 6px " + color + ")"; });
+      el.addEventListener("mouseleave", () => { el.style.filter = "none"; });
 
       el.addEventListener("click", (e) => {
         e.stopPropagation();
