@@ -31,9 +31,10 @@ const routeStopsCache = {};
 async function getStopsForRoute(route) {
   if (routeStopsCache[route] && Date.now() - routeStopsCache[route].ts < 3600_000) return routeStopsCache[route].stops;
   try {
-    const data = await fetchJSON(`${SIRI_BASE}/where/stops-for-route/${encodeURIComponent(oneBusAwayId(route))}.json?key=${API_KEY}&version=2`, 10000);
-    const stops = (data?.data?.entry?.stops || []).map((s) => ({
-      stopId: s.id?.replace("MTA NYCT_", "").replace("MTA_", "") || s.id,
+    const data = await fetchJSON(`${SIRI_BASE}/where/stops-for-route/${encodeURIComponent(oneBusAwayId(route))}.json?key=${API_KEY}&includePolylines=false&version=2`, 10000);
+    const rawStops = data?.data?.entry?.stops || data?.data?.references?.stops || [];
+    const stops = rawStops.map((s) => ({
+      stopId: s.id?.replace("MTA_", "").replace("MTA NYCT_", "").replace("MTABC_", "") || s.id,
       name: s.name || "",
     }));
     routeStopsCache[route] = { stops, ts: Date.now() };
