@@ -22,15 +22,17 @@ export function cors(res) {
 }
 
 // Express routes (BM*, BxM*) use MTABC_ prefix, local/SBS use MTA NYCT_
+// SBS routes use + suffix in MTA API (e.g. B44-SBS -> MTA NYCT_B44+)
 export function routeApiId(route) {
   const r = route.toUpperCase();
   if (r.startsWith("BM") || r.startsWith("BX")) return `MTABC_${r}`;
+  if (r.endsWith("-SBS")) return `MTA NYCT_${r.replace(/-SBS$/, "")}+`;
   return `MTA NYCT_${r}`;
 }
 
-// OneBusAway doesn't know about -SBS suffix — strip it for polylines/stops
+// OneBusAway uses + suffix for SBS routes (not -SBS)
 export function oneBusAwayId(route) {
-  return routeApiId(route.replace(/-SBS$/i, ""));
+  return routeApiId(route);
 }
 
 export async function fetchJSON(url, timeoutMs = 10000) {

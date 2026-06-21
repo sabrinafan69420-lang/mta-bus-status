@@ -1,7 +1,7 @@
 import { DEFAULT_ROUTES, cors, fetchJSON, SIRI_BASE, API_KEY, routeApiId } from "./lib.js";
 
 function stripRoutePrefix(s) {
-  return s.replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "");
+  return s.replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "").replace(/\+$/, "");
 }
 
 async function fetchVehicleMonitoring(lineRef) {
