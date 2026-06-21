@@ -898,9 +898,10 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
       if (!visibleRoutes.includes(route)) return;
       const routeCoords = polylines[route];
       if (!routeCoords || routeCoords.length === 0) return;
+      const coords = Array.isArray(routeCoords[0]) ? routeCoords : [routeCoords];
       map.addSource(sourceId, {
         type: "geojson",
-        data: { type: "Feature", properties: { route }, geometry: { type: "LineString", coordinates: routeCoords } },
+        data: { type: "Feature", properties: { route }, geometry: { type: "MultiLineString", coordinates: coords } },
       });
       map.addLayer({
         id: layerGlow, type: "line", source: sourceId,
@@ -1546,13 +1547,13 @@ export default function App() {
       ]);
       const polData = await polRes.json();
       const stopData = await stopRes.json();
-      if (!polData.coordinates || polData.coordinates.length === 0) {
+      if (!polData.segments || polData.segments.length === 0) {
         setRouteError(`Route "${input}" not found`);
         setTimeout(() => setRouteError(""), 2000);
         setAddingRoute(false);
         return;
       }
-      setPolylines((prev) => ({ ...prev, [input]: polData.coordinates }));
+      setPolylines((prev) => ({ ...prev, [input]: polData.segments }));
       setRouteStops((prev) => ({ ...prev, [input]: stopData.stops || [] }));
       setTrackedRoutes((prev) => [...prev, input]);
       setVisibleRoutes((prev) => [...prev, input]);
@@ -1613,7 +1614,7 @@ export default function App() {
           ]);
           const polData = await polRes.json();
           const stopData = await stopRes.json();
-          return { route, polylines: polData.coordinates || [], stops: stopData.stops || [] };
+          return { route, polylines: polData.segments || [], stops: stopData.stops || [] };
         })
       );
       const pol = {};
