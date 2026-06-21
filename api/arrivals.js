@@ -1,8 +1,12 @@
-import { FAVORITES, cors, fetchJSON, SIRI_BASE, API_KEY } from "./lib.js";
+import { FAVORITES, cors, fetchJSON, SIRI_BASE, API_KEY, routeApiId } from "./lib.js";
+
+function stripRoutePrefix(s) {
+  return s.replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "");
+}
 
 async function fetchArrivals(stopId, lineRef) {
   let url = `${SIRI_BASE}/siri/stop-monitoring.json?key=${API_KEY}&version=2&OperatorRef=MTA&MonitoringRef=${stopId}&StopMonitoringDetailLevel=calls`;
-  if (lineRef) url += `&LineRef=MTA%20NYCT_${lineRef}`;
+  if (lineRef) url += `&LineRef=${encodeURIComponent(routeApiId(lineRef))}`;
   return fetchJSON(url, 12000);
 }
 
@@ -18,7 +22,7 @@ export default async function handler(req, res) {
         const arrivals = visits.map((v) => {
           const mvj = v.MonitoredVehicleJourney; const call = mvj?.MonitoredCall;
           if (!call) return null;
-          const route = mvj.LineRef?.replace("MTA NYCT_", "").replace("MTA_", "");
+          const route = stripRoutePrefix(mvj.LineRef || "");
           const dir = mvj.DirectionRef === "0" ? "Outbound" : "Inbound";
           const dest = Array.isArray(mvj.DestinationName) ? mvj.DestinationName[0] : mvj.DestinationName || "Unknown";
           const arrival = call.ExpectedArrivalTime || call.AimedArrivalTime;

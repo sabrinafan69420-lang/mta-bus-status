@@ -18,7 +18,7 @@ export default async function handler(req, res) {
       const ts = parseInt(vp.timestamp) || 0;
       if (ts && now - ts > 300) continue;
       vehicles.push({
-        id: (vp.vehicle?.id || "").replace("MTA NYCT_", "").replace("MTA_", ""),
+        id: (vp.vehicle?.id || "").replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", ""),
         route: routeId, lat: vp.position?.latitude, lon: vp.position?.longitude,
         bearing: vp.position?.bearing || 0, speed: vp.position?.speed || null,
         timestamp: ts || null, occupancy: vp.occupancy_status || null,

@@ -18,7 +18,14 @@ export const DEFAULT_ROUTES = ["B6", "B8", "B15"];
 
 export function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content, Accept");
+}
+
+// Express routes (BM*, BxM*) use MTABC_ prefix, local/SBS use MTA NYCT_
+export function routeApiId(route) {
+  const r = route.toUpperCase();
+  if (r.startsWith("BM") || r.startsWith("BX")) return `MTABC_${r}`;
+  return `MTA NYCT_${r}`;
 }
 
 export async function fetchJSON(url, timeoutMs = 10000) {

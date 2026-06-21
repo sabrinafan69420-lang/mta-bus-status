@@ -1,8 +1,12 @@
-import { DEFAULT_ROUTES, cors, fetchJSON, SIRI_BASE, API_KEY } from "./lib.js";
+import { DEFAULT_ROUTES, cors, fetchJSON, SIRI_BASE, API_KEY, routeApiId } from "./lib.js";
+
+function stripRoutePrefix(s) {
+  return s.replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "");
+}
 
 async function fetchVehicleMonitoring(lineRef) {
   let url = `${SIRI_BASE}/siri/vehicle-monitoring.json?key=${API_KEY}&version=2&OperatorRef=MTA&VehicleMonitoringDetailLevel=calls&MaximumNumberOfCallsOnwards=5`;
-  if (lineRef) url += `&LineRef=MTA%20NYCT_${lineRef}`;
+  if (lineRef) url += `&LineRef=${encodeURIComponent(routeApiId(lineRef))}`;
   return fetchJSON(url, 15000);
 }
 
@@ -19,7 +23,7 @@ export default async function handler(req, res) {
         return (mon?.VehicleActivity || []).map((v) => {
           const mvj = v.MonitoredVehicleJourney;
           const rawId = typeof mvj.VehicleRef === "string" ? mvj.VehicleRef : mvj.VehicleRef?.value || "";
-          const vehicleNum = rawId.replace("MTA NYCT_", "").replace("MTA_", "");
+          const vehicleNum = stripRoutePrefix(rawId);
           const onwardCalls = (mvj.OnwardCalls?.OnwardCall || []).map((call) => {
             const d = call.Extensions?.Distances || {};
             const stopId = (call.StopPointRef || "").replace("MTA_", "");
@@ -28,7 +32,7 @@ export default async function handler(req, res) {
           const mc = mvj.MonitoredCall;
           const nextStop = mc ? { stopId: (mc.StopPointRef || "").replace("MTA_", ""), distance: mc.Extensions?.Distances?.PresentableDistance || null, stopsAway: mc.Extensions?.Distances?.StopsFromCall ?? null } : null;
           return {
-            id: vehicleNum, route: mvj.LineRef?.replace("MTA NYCT_", "").replace("MTA_", "") || route,
+            id: vehicleNum, route: stripRoutePrefix(mvj.LineRef || "") || route,
             direction: mvj.DirectionRef === "0" ? "Outbound" : "Inbound",
             destination: Array.isArray(mvj.DestinationName) ? mvj.DestinationName[0] : mvj.DestinationName || "",
             lat: mvj.VehicleLocation?.Latitude, lon: mvj.VehicleLocation?.Longitude,
