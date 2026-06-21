@@ -2513,3 +2513,33 @@ body {
 .report-delete:hover { color: var(--red); }
 .report-stop { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
 .report-note { font-size: 11px; color: var(--text-dim); margin-top: 2px; font-style: italic; }
+
+/* === Stop Picker === */
+.stop-picker-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.stop-picker { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 90vw; max-width: 480px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+.stop-picker-header { padding: 14px 16px 0; display: flex; justify-content: space-between; align-items: center; }
+.stop-picker-title { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.stop-picker-route { padding: 2px 10px; border-radius: 4px; color: white; font-size: 12px; font-weight: 700; }
+.stop-picker-count { font-size: 12px; color: var(--text-dim); }
+.stop-picker-search { padding: 8px 16px; }
+.stop-picker-search input { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; }
+.stop-picker-actions { padding: 0 16px 4px; display: flex; gap: 6px; }
+.stop-picker-actions button { padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); font-size: 11px; cursor: pointer; }
+.stop-picker-actions button:hover { border-color: var(--accent); color: var(--text); }
+.stop-picker-list { flex: 1; overflow-y: auto; padding: 0 16px 8px; max-height: 400px; }
+.stop-picker-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.stop-picker-item:hover { background: var(--surface-2); }
+.stop-picker-item.checked { background: var(--accent-glow); }
+.stop-picker-item input[type="checkbox"] { accent-color: var(--accent); }
+.stop-picker-name { flex: 1; }
+.stop-picker-id { color: var(--text-dim); font-size: 10px; font-family: monospace; }
+.stop-picker-empty { text-align: center; color: var(--text-dim); padding: 20px; font-size: 12px; }
+.stop-picker-footer { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+.stop-picker-cancel { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); font-size: 13px; cursor: pointer; }
+.stop-picker-confirm { padding: 8px 14px; border-radius: 8px; border: none; background: var(--accent); color: white; font-weight: 600; font-size: 13px; cursor: pointer; }
+.stop-picker-confirm:disabled { opacity: 0.5; cursor: default; }
+
+/* Route edit button */
+.route-edit { font-size: 11px; color: var(--text-dim); cursor: pointer; padding: 0 2px; opacity: 0; transition: opacity 0.15s; }
+.route-toggle:hover .route-edit { opacity: 1; }
+.route-edit:hover { color: var(--accent); }

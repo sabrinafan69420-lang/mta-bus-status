@@ -1197,6 +1197,66 @@ function UserReports({ trackedRoutes, routeColors }) {
   );
 }
 
+// === Feature: Stop Picker ===
+function StopPicker({ route, stops, selected, onConfirm, onCancel, routeColor }) {
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState(() => new Set(selected || []));
+  
+  const filtered = useMemo(() => {
+    if (!query.trim()) return stops;
+    const q = query.toLowerCase();
+    return stops.filter(s => s.name?.toLowerCase().includes(q) || s.id?.includes(q));
+  }, [stops, query]);
+
+  const toggle = (stopId) => {
+    setPicked(prev => {
+      const next = new Set(prev);
+      if (next.has(stopId)) next.delete(stopId); else next.add(stopId);
+      return next;
+    });
+  };
+
+  const selectAll = () => setPicked(new Set(stops.map(s => s.id)));
+  const selectNone = () => setPicked(new Set());
+
+  return (
+    <div className="stop-picker-overlay" onClick={onCancel}>
+      <div className="stop-picker" onClick={e => e.stopPropagation()}>
+        <div className="stop-picker-header">
+          <div className="stop-picker-title">
+            <span className="stop-picker-route" style={{ background: routeColor || "#6366f1" }}>{route}</span>
+            Select Stops to Track
+          </div>
+          <div className="stop-picker-count">{picked.size} / {stops.length} selected</div>
+        </div>
+        <div className="stop-picker-search">
+          <input placeholder="Search stops..." value={query} onChange={e => setQuery(e.target.value)} autoFocus />
+        </div>
+        <div className="stop-picker-actions">
+          <button onClick={selectAll}>Select All</button>
+          <button onClick={selectNone}>None</button>
+        </div>
+        <div className="stop-picker-list">
+          {filtered.map(s => (
+            <label key={s.id} className={`stop-picker-item ${picked.has(s.id) ? "checked" : ""}`}>
+              <input type="checkbox" checked={picked.has(s.id)} onChange={() => toggle(s.id)} />
+              <span className="stop-picker-name">{s.name}</span>
+              <span className="stop-picker-id">{s.id}</span>
+            </label>
+          ))}
+          {filtered.length === 0 && <div className="stop-picker-empty">No stops found</div>}
+        </div>
+        <div className="stop-picker-footer">
+          <button className="stop-picker-cancel" onClick={onCancel}>Cancel</button>
+          <button className="stop-picker-confirm" onClick={() => onConfirm([...picked])} disabled={picked.size === 0}>
+            Track {picked.size} Stop{picked.size !== 1 ? "s" : ""}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // --- Map Component ---
 function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRoutes, routeColors, heatmapEnabled, onMapMove }) {
   const mapContainer = useRef(null);
@@ -1619,6 +1679,9 @@ export default function App() {
   const [routeError, setRouteError] = useState("");
   const [addingRoute, setAddingRoute] = useState(false);
   const [showRouteSuggestions, setShowRouteSuggestions] = useState(false);
+  const [pickerRoute, setPickerRoute] = useState(null);
+  const [pickerStops, setPickerStops] = useState([]);
+  const [editingRoute, setEditingRoute] = useState(null);
   const [notifPermission, setNotifPermission] = useState(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
   );
@@ -1916,14 +1979,50 @@ export default function App() {
       }
       setPolylines((prev) => ({ ...prev, [input]: polData.segments }));
       setRouteStops((prev) => ({ ...prev, [input]: stopData.stops || [] }));
-      setTrackedRoutes((prev) => [...prev, input]);
-      setVisibleRoutes((prev) => [...prev, input]);
+      setPickerRoute(input);
+      setPickerStops(stopData.stops || []);
       setRouteInput("");
+      setShowRouteSuggestions(false);
     } catch {
       setRouteError("Failed to add route");
       setTimeout(() => setRouteError(""), 2000);
     }
     setAddingRoute(false);
+  };
+
+  const handlePickerConfirm = (selectedStopIds) => {
+    if (!pickerRoute) return;
+    if (!editingRoute) {
+      setTrackedRoutes((prev) => [...prev, pickerRoute]);
+      setVisibleRoutes((prev) => [...prev, pickerRoute]);
+    }
+    const routeStopsData = pickerStops.filter(s => selectedStopIds.includes(s.id));
+    setFavorites(prev => {
+      const existing = prev.filter(f => f.route !== pickerRoute);
+      const newFavs = routeStopsData.map(s => ({ stopId: s.id, name: s.name, route: pickerRoute }));
+      const next = [...existing, ...newFavs];
+      localStorage.setItem("mta-favorites", JSON.stringify(next));
+      return next;
+    });
+    setPickerRoute(null);
+    setPickerStops([]);
+    setEditingRoute(null);
+  };
+
+  const handlePickerCancel = () => {
+    setPickerRoute(null);
+    setPickerStops([]);
+    setEditingRoute(null);
+  };
+
+  const handleEditRouteStops = async (route) => {
+    setEditingRoute(route);
+    try {
+      const res = await fetch(`/api/stops/${route}`);
+      const data = await res.json();
+      setPickerRoute(route);
+      setPickerStops(data.stops || []);
+    } catch {}
   };
 
   const handleRemoveRoute = (route) => {
@@ -2101,6 +2200,7 @@ export default function App() {
                   {!DEFAULT_ROUTES.includes(r) && (
                     <span className="route-remove" onClick={(e) => { e.stopPropagation(); handleRemoveRoute(r); }}>✕</span>
                   )}
+                  <span className="route-edit" onClick={(e) => { e.stopPropagation(); handleEditRouteStops(r); }} title="Edit stops">✎</span>
                 </button>
               ))}
             </div>
@@ -2284,6 +2384,17 @@ export default function App() {
       <div className="footer">
         Data from MTA Bus Time API · Map polls every 15s · Auto-refreshes every 30s
       </div>
+
+      {pickerRoute && pickerStops.length > 0 && (
+        <StopPicker
+          route={pickerRoute}
+          stops={pickerStops}
+          selected={editingRoute ? favorites.filter(f => f.route === pickerRoute).map(f => f.stopId) : []}
+          onConfirm={handlePickerConfirm}
+          onCancel={handlePickerCancel}
+          routeColor={routeColors[pickerRoute]}
+        />
+      )}
     </div>
   );
 }
