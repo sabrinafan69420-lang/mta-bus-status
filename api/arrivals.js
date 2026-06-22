@@ -63,12 +63,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const favResults = await Promise.all(FAVORITES.map(async (fav) => {
-      try {
-        const data = await fetchArrivals(fav.stopId, fav.route);
-        return { ...fav, arrivals: parseArrivals(data) };
-      } catch { return { ...fav, arrivals: [], error: "Failed to fetch" }; }
-    }));
+    const favResults = [];
 
     const extraResults = [];
     if (extraRoutes.length > 0) {
