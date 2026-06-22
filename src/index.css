@@ -21,6 +21,7 @@
   --yellow-dim: rgba(234, 179, 8, 0.12);
   --red: #ef4444;
   --red-dim: rgba(239, 68, 68, 0.12);
+  --danger: #ef4444;
   --orange: #f97316;
   --orange-dim: rgba(249, 115, 22, 0.12);
 }
@@ -40,6 +41,7 @@
   --yellow-dim: rgba(202, 138, 4, 0.1);
   --red: #dc2626;
   --red-dim: rgba(220, 38, 38, 0.1);
+  --danger: #dc2626;
   --orange: #ea580c;
   --orange-dim: rgba(234, 88, 12, 0.1);
 }
@@ -1143,9 +1145,15 @@ body {
   border-color: var(--accent);
 }
 
+.stop-card-remove-btn {
+  color: var(--red);
+  border-color: transparent;
+}
+
 .stop-card-remove-btn:hover {
-  color: var(--danger);
-  border-color: var(--danger);
+  background: var(--red);
+  color: white;
+  border-color: var(--red);
 }
 
 /* === Notification Banner === */
