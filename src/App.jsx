@@ -1933,11 +1933,10 @@ export default function App() {
   };
 
   const sortedStops = useMemo(() => {
-    const visible = stops.filter((s) => !hiddenStops.includes(`${s.stopId}-${s.route}`));
-    const fav = visible.filter((s) => isFav(s));
-    const rest = visible.filter((s) => !isFav(s));
+    const fav = stops.filter((s) => isFav(s));
+    const rest = stops.filter((s) => !isFav(s));
     return [...fav, ...rest];
-  }, [stops, favorites, hiddenStops]);
+  }, [stops, favorites]);
 
   // Notifications
   const requestNotifPermission = () => {
@@ -2087,7 +2086,8 @@ export default function App() {
       const stopsData = await stopsRes.json();
       const vehiclesData = await vehiclesRes.json();
       setAlerts(alertsData.alerts || []);
-      setStops(stopsData.stops || []);
+      const allStops = (stopsData.stops || []).filter((s) => !hiddenStops.includes(`${s.stopId}-${s.route}`));
+      setStops(allStops);
       setVehicles(vehiclesData.vehicles || []);
       setLastRefresh(new Date());
     } catch (err) {
@@ -2095,7 +2095,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [trackedRoutes]);
+  }, [trackedRoutes, hiddenStops]);
 
   const fetchPolylinesAndStops = useCallback(async () => {
     try {
