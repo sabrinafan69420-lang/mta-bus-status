@@ -1,4 +1,4 @@
-import { cors, fetchJSON, SIRI_BASE, API_KEY, routeApiId, oneBusAwayId } from "./lib.js";
+import { FAVORITES, cors, fetchJSON, SIRI_BASE, API_KEY, routeApiId, oneBusAwayId } from "./lib.js";
 
 function stripRoutePrefix(s, originalRoute) {
   let clean = s.replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "");
@@ -78,6 +78,8 @@ export default async function handler(req, res) {
           const selected = userStopIds.map(id => allStops.find(s => s.stopId === id)).filter(Boolean);
           return { route, stops: selected };
         }
+        const routeFavs = FAVORITES.filter(f => f.route === route);
+        if (routeFavs.length > 0) return { route, stops: routeFavs };
         const stops = await getStopsForRoute(route);
         return { route, stops: stops.slice(0, 3) };
       }));
