@@ -1698,6 +1698,9 @@ export default function App() {
   const [favorites, setFavorites] = useState(() => {
     try { return JSON.parse(localStorage.getItem("mta-favorites") || "[]"); } catch { return []; }
   });
+  const [hiddenStops, setHiddenStops] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("mta-hidden-stops") || "[]"); } catch { return []; }
+  });
   const [scheduleRoute, setScheduleRoute] = useState(null);
   const [mobileSheet, setMobileSheet] = useState("arrivals");
   const [theme, setTheme] = useState(() => localStorage.getItem("mta-theme") || "dark");
@@ -1911,6 +1914,12 @@ export default function App() {
   const isFav = (stop) => favorites.some((f) => f.stopId === stop.stopId && f.route === stop.route);
 
   const removeStop = (stop) => {
+    const key = `${stop.stopId}-${stop.route}`;
+    setHiddenStops((prev) => {
+      const next = [...prev, key];
+      localStorage.setItem("mta-hidden-stops", JSON.stringify(next));
+      return next;
+    });
     setFavorites((prev) => {
       const next = prev.filter((f) => !(f.stopId === stop.stopId && f.route === stop.route));
       localStorage.setItem("mta-favorites", JSON.stringify(next));
@@ -1918,11 +1927,17 @@ export default function App() {
     });
   };
 
+  const restoreHiddenStops = () => {
+    setHiddenStops([]);
+    localStorage.setItem("mta-hidden-stops", "[]");
+  };
+
   const sortedStops = useMemo(() => {
-    const fav = stops.filter((s) => isFav(s));
-    const rest = stops.filter((s) => !isFav(s));
+    const visible = stops.filter((s) => !hiddenStops.includes(`${s.stopId}-${s.route}`));
+    const fav = visible.filter((s) => isFav(s));
+    const rest = visible.filter((s) => !isFav(s));
     return [...fav, ...rest];
-  }, [stops, favorites]);
+  }, [stops, favorites, hiddenStops]);
 
   // Notifications
   const requestNotifPermission = () => {
@@ -2308,7 +2323,14 @@ export default function App() {
       {/* Content panels */}
       <div className={`content-panels ${mobileSheet}`}>
         <div className={`panel ${mobileSheet === "arrivals" ? "mobile-visible" : ""}`}>
-          <div className="section-title">Live Arrivals {favorites.length > 0 && <span className="count">({favorites.length} starred)</span>}</div>
+          <div className="section-title">
+            Live Arrivals {favorites.length > 0 && <span className="count">({favorites.length} starred)</span>}
+            {hiddenStops.length > 0 && (
+              <button className="restore-hidden-btn" onClick={restoreHiddenStops}>
+                ↺ Restore {hiddenStops.length} hidden stop{hiddenStops.length !== 1 ? "s" : ""}
+              </button>
+            )}
+          </div>
           <div className="arrivals-grid">
             {sortedStops.map((s) => (
               <StopCard key={`${s.stopId}-${s.route}`} stop={s} isFavorite={isFav(s)} onToggleFavorite={toggleFavorite} onRemoveStop={removeStop} onEditStops={handleEditRouteStops} routeColors={routeColors} />

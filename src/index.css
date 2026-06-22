@@ -169,10 +169,34 @@ body {
   letter-spacing: 1px;
   color: var(--text-dim);
   margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .section-title .count {
   color: var(--accent);
+}
+
+.restore-hidden-btn {
+  margin-left: auto;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.restore-hidden-btn:hover {
+  background: var(--accent);
+  color: white;
 }
 
 /* Alert cards */
