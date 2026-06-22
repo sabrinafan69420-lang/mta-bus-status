@@ -68,7 +68,7 @@ async function fetchVehiclePositions() {
       if (timestamp && now - timestamp > 300) continue;
 
       vehicles.push({
-        id: (vehicle.id || "").replace("MTA NYCT_", "").replace("MTA_", ""),
+        id: (vehicle.id || "").replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", ""),
         route: routeId,
         lat: pos.latitude,
         lon: pos.longitude,
@@ -265,7 +265,7 @@ app.get("/api/arrivals", async (req, res) => {
             const call = mvj?.MonitoredCall;
             if (!call) return null;
 
-            const route = mvj.LineRef?.replace("MTA NYCT_", "").replace("MTA_", "");
+            const route = (mvj.LineRef || "").replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "");
             const dir = mvj.DirectionRef === "0" ? "Outbound" : "Inbound";
             const dest = Array.isArray(mvj.DestinationName)
               ? mvj.DestinationName[0]
@@ -302,7 +302,7 @@ app.get("/api/vehicles/:route", async (req, res) => {
       const mvj = v.MonitoredVehicleJourney;
       return {
         id: mvj.VehicleRef?.value,
-        route: mvj.LineRef?.replace("MTA NYCT_", "").replace("MTA_", ""),
+        route: (mvj.LineRef || "").replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", ""),
         direction: mvj.DirectionRef === "0" ? "Outbound" : "Inbound",
         destination: Array.isArray(mvj.DestinationName)
           ? mvj.DestinationName[0]
@@ -334,12 +334,12 @@ app.get("/api/vehicles", async (req, res) => {
           return (mon?.VehicleActivity || []).map((v) => {
             const mvj = v.MonitoredVehicleJourney;
             const rawId = typeof mvj.VehicleRef === "string" ? mvj.VehicleRef : mvj.VehicleRef?.value || "";
-            const vehicleNum = rawId.replace("MTA NYCT_", "").replace("MTA_", "");
+            const vehicleNum = rawId.replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "");
 
             // Parse OnwardCalls (upcoming stops)
             const onwardCalls = (mvj.OnwardCalls?.OnwardCall || []).map((call) => {
               const distances = call.Extensions?.Distances || {};
-              const stopId = (call.StopPointRef || "").replace("MTA_", "");
+              const stopId = (call.StopPointRef || "").replace("MTA_", "").replace("MTA NYCT_", "").replace("MTABC_", "");
               return {
                 stopId,
                 name: call.StopPointName || stopId,
@@ -353,7 +353,7 @@ app.get("/api/vehicles", async (req, res) => {
             // Parse MonitoredCall (next stop)
             const monitoredCall = mvj.MonitoredCall;
             const nextStop = monitoredCall ? {
-              stopId: (monitoredCall.StopPointRef || "").replace("MTA_", ""),
+              stopId: (monitoredCall.StopPointRef || "").replace("MTA_", "").replace("MTA NYCT_", "").replace("MTABC_", ""),
               distance: monitoredCall.Extensions?.Distances?.PresentableDistance || null,
               stopsAway: monitoredCall.Extensions?.Distances?.StopsFromCall ?? null,
             } : null;
@@ -363,7 +363,7 @@ app.get("/api/vehicles", async (req, res) => {
 
             return {
               id: vehicleNum,
-              route: mvj.LineRef?.replace("MTA NYCT_", "").replace("MTA_", "") || route,
+              route: (mvj.LineRef || "").replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "") || route,
               direction: mvj.DirectionRef === "0" ? "Outbound" : "Inbound",
               destination: Array.isArray(mvj.DestinationName)
                 ? mvj.DestinationName[0]
@@ -374,7 +374,7 @@ app.get("/api/vehicles", async (req, res) => {
               progressRate: mvj.ProgressRate || "unknown",
               progressStatus,
               occupancy: mvj.Occupancy || null,
-              destinationRef: mvj.DestinationRef?.replace("MTA_", "") || null,
+              destinationRef: (mvj.DestinationRef || "").replace("MTA_", "").replace("MTA NYCT_", "").replace("MTABC_", "") || null,
               situationRef: mvj.SituationRef?.[0]?.SituationSimpleRef || null,
               nextStop,
               onwardCalls,

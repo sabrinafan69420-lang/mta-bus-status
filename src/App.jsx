@@ -1454,7 +1454,7 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
                 const mvj = v.MonitoredVehicleJourney;
                 const call = mvj?.MonitoredCall;
                 if (!call) return null;
-                const arrRoute = mvj.LineRef?.replace("MTA NYCT_", "").replace("MTA_", "");
+                const arrRoute = (mvj.LineRef || "").replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "").replace(/\+$/, "");
                 const dir = mvj.DirectionRef === "0" ? "Outbound" : "Inbound";
                 const dest = Array.isArray(mvj.DestinationName) ? mvj.DestinationName[0] : mvj.DestinationName || "?";
                 const arrival = call.ExpectedArrivalTime || call.AimedArrivalTime;
@@ -1646,7 +1646,7 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
             const mvj = v.MonitoredVehicleJourney;
             const call = mvj?.MonitoredCall;
             if (!call) return null;
-            const arrRoute = mvj.LineRef?.replace("MTA NYCT_", "").replace("MTA_", "");
+            const arrRoute = (mvj.LineRef || "").replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "").replace(/\+$/, "");
             const dir = mvj.DirectionRef === "0" ? "Outbound" : "Inbound";
             const dest = Array.isArray(mvj.DestinationName) ? mvj.DestinationName[0] : mvj.DestinationName || "?";
             const arrival = call.ExpectedArrivalTime || call.AimedArrivalTime;
@@ -1903,6 +1903,15 @@ export default function App() {
   const handleShare = () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      const input = document.createElement("input");
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });

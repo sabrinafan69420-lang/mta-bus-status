@@ -13,7 +13,7 @@ async function fetchStopsForRoute(route) {
     const url = `${SIRI_BASE}/where/stops-for-route/${encodeURIComponent(route)}.json?key=${API_KEY}&includePolylines=false&version=2`;
     const data = await fetchJSON(url, 10000);
     return (data?.data?.references?.stops || []).map(s => ({
-      id: (s.id || "").replace("MTA_", ""),
+      id: (s.id || "").replace("MTA_", "").replace("MTA NYCT_", "").replace("MTABC_", ""),
       name: s.name,
       lat: s.lat,
       lon: s.lon,

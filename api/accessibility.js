@@ -19,7 +19,7 @@ export default async function handler(req, res) {
       route,
       wheelchairBoarding: stops.some(s => s.wheelchairBoarding === "accessible") ? "yes" : "unknown",
       stops: stops.map(s => ({
-        id: (s.id || "").replace("MTA_", ""),
+        id: (s.id || "").replace("MTA_", "").replace("MTA NYCT_", "").replace("MTABC_", ""),
         name: s.name,
         wheelchairBoarding: s.wheelchairBoarding || "unknown",
       })),

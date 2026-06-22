@@ -30,13 +30,13 @@ export default async function handler(req, res) {
           const vehicleNum = stripRoutePrefix(rawId);
           const onwardCalls = (mvj.OnwardCalls?.OnwardCall || []).map((call) => {
             const d = call.Extensions?.Distances || {};
-            const stopId = (call.StopPointRef || "").replace("MTA_", "");
+            const stopId = (call.StopPointRef || "").replace("MTA_", "").replace("MTA NYCT_", "").replace("MTABC_", "");
             const dist = d.PresentableDistance || call.ArrivalProximityText || null;
             const stopsAway = d.StopsFromCall ?? call.NumberOfStopsAway ?? null;
             return { stopId, name: Array.isArray(call.StopPointName) ? call.StopPointName[0] : (call.StopPointName || stopId), distance: dist, stopsAway, metersAway: d.DistanceFromCall ?? call.DistanceFromStop ?? null };
           });
           const mc = mvj.MonitoredCall;
-          const nextStop = mc ? { stopId: (mc.StopPointRef || "").replace("MTA_", ""), distance: mc.Extensions?.Distances?.PresentableDistance || null, stopsAway: mc.Extensions?.Distances?.StopsFromCall ?? null } : null;
+          const nextStop = mc ? { stopId: (mc.StopPointRef || "").replace("MTA_", "").replace("MTA NYCT_", "").replace("MTABC_", ""), distance: mc.Extensions?.Distances?.PresentableDistance || null, stopsAway: mc.Extensions?.Distances?.StopsFromCall ?? null } : null;
           return {
             id: vehicleNum, route: stripRoutePrefix(mvj.LineRef || "", route) || route,
             direction: mvj.DirectionRef === "0" ? "Outbound" : "Inbound",
@@ -44,7 +44,7 @@ export default async function handler(req, res) {
             lat: mvj.VehicleLocation?.Latitude, lon: mvj.VehicleLocation?.Longitude,
             bearing: mvj.Bearing || 0, progressRate: mvj.ProgressRate || "unknown",
             progressStatus: mvj.ProgressStatus || null, occupancy: mvj.Occupancy || null,
-            destinationRef: mvj.DestinationRef?.replace("MTA_", "") || null,
+            destinationRef: (mvj.DestinationRef || "").replace("MTA_", "").replace("MTA NYCT_", "").replace("MTABC_", "") || null,
             onwardCalls, nextStop, recordedAt: v.RecordedAtTime || null,
           };
         });
