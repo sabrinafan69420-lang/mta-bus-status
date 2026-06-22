@@ -1579,6 +1579,53 @@ body {
   color: white;
 }
 
+.calendar-day.selected {
+  background: var(--accent) !important;
+  color: white !important;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.calendar-selected-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: var(--accent-glow);
+  border-radius: 8px;
+}
+
+.calendar-selected-info strong {
+  color: var(--accent);
+}
+
+.calendar-clear-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  font-family: inherit;
+}
+
+.calendar-more-alerts {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 4px 0;
+}
+
+.calendar-no-alerts {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 16px;
+}
+
 .calendar-alerts-list {
   margin-top: 16px;
   border-top: 1px solid var(--border);

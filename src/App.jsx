@@ -280,9 +280,10 @@ function DepartureBoard({ stops, routeColors, activeRoute }) {
 
 function ServiceCalendar({ alerts }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(null);
 
   const alertDays = useMemo(() => {
-    const days = new Set();
+    const days = {};
     alerts.forEach((alert) => {
       (alert.activePeriods || []).forEach((p) => {
         if (!p.start) return;
@@ -290,7 +291,9 @@ function ServiceCalendar({ alerts }) {
         const end = p.end ? new Date(p.end * 1000) : new Date(p.start * 1000 + 86400000);
         const d = new Date(start);
         while (d <= end) {
-          days.add(d.toISOString().slice(0, 10));
+          const dateStr = d.toISOString().slice(0, 10);
+          if (!days[dateStr]) days[dateStr] = [];
+          if (!days[dateStr].some(a => a.id === alert.id)) days[dateStr].push(alert);
           d.setDate(d.getDate() + 1);
         }
       });
@@ -312,6 +315,9 @@ function ServiceCalendar({ alerts }) {
   for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
 
+  const dayAlerts = selectedDate ? (alertDays[selectedDate] || []) : [];
+  const displayAlerts = selectedDate ? dayAlerts : alerts;
+
   return (
     <div className="service-calendar">
       <div className="calendar-nav">
@@ -319,6 +325,12 @@ function ServiceCalendar({ alerts }) {
         <span className="calendar-month">{monthName}</span>
         <button className="calendar-nav-btn" onClick={nextMonth}>▶</button>
       </div>
+      {selectedDate && (
+        <div className="calendar-selected-info">
+          Showing alerts for <strong>{selectedDate}</strong>
+          <button className="calendar-clear-btn" onClick={() => setSelectedDate(null)}>Clear</button>
+        </div>
+      )}
       <div className="calendar-weekdays">
         {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
           <span key={d} className="calendar-weekday">{d}</span>
@@ -328,22 +340,24 @@ function ServiceCalendar({ alerts }) {
         {cells.map((day, i) => {
           if (day === null) return <span key={`empty-${i}`} className="calendar-day empty" />;
           const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-          const hasAlert = alertDays.has(dateStr);
+          const hasAlert = !!alertDays[dateStr];
           const isToday = dateStr === today;
+          const isSelected = dateStr === selectedDate;
           return (
             <span
               key={dateStr}
-              className={`calendar-day ${hasAlert ? "has-alert" : ""} ${isToday ? "today" : ""}`}
-              title={hasAlert ? "Active alerts on this day" : ""}
+              className={`calendar-day ${hasAlert ? "has-alert" : ""} ${isToday ? "today" : ""} ${isSelected ? "selected" : ""}`}
+              title={hasAlert ? `${alertDays[dateStr].length} alert(s) — click to filter` : ""}
+              onClick={() => hasAlert && setSelectedDate(isSelected ? null : dateStr)}
             >
               {day}
             </span>
           );
         })}
       </div>
-      {alerts.length > 0 && (
+      {displayAlerts.length > 0 && (
         <div className="calendar-alerts-list">
-          {alerts.slice(0, 5).map((a) => (
+          {displayAlerts.slice(0, 5).map((a) => (
             <div key={a.id} className="calendar-alert-item">
               <span className={`alert-effect ${effectClass(a.effect)}`} style={{ fontSize: 10, padding: "2px 6px" }}>
                 {formatEffect(a.effect)}
@@ -352,7 +366,13 @@ function ServiceCalendar({ alerts }) {
               <span className="calendar-alert-header">{a.header}</span>
             </div>
           ))}
+          {displayAlerts.length > 5 && (
+            <div className="calendar-more-alerts">+{displayAlerts.length - 5} more</div>
+          )}
         </div>
+      )}
+      {selectedDate && displayAlerts.length === 0 && (
+        <div className="calendar-no-alerts">No alerts on this day</div>
       )}
     </div>
   );
