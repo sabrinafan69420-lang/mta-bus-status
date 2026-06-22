@@ -1961,6 +1961,7 @@ export default function App() {
       localStorage.setItem("mta-favorites", JSON.stringify(next));
       return next;
     });
+    setStops(prev => prev.filter(s => !(s.stopId === stop.stopId && s.route === stop.route)));
   };
 
   const restoreHiddenStops = () => {
