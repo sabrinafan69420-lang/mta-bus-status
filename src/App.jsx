@@ -177,7 +177,7 @@ function StopCard({ stop, isFavorite, onToggleFavorite, onRemoveStop, onEditStop
           >✎</button>
           <button
             className="stop-card-remove-btn"
-            onClick={() => onRemoveStop?.(stop)}
+            onClick={() => { if (confirm(`Remove ${stop.name} (${stop.route})?`)) onRemoveStop?.(stop); }}
             title="Remove this stop"
           >✕</button>
           <span className="stop-route-badge" style={{ background: routeColors[stop.route] || "var(--accent)" }}>{stop.route}</span>
@@ -1955,6 +1955,13 @@ export default function App() {
       localStorage.setItem("mta-hidden-stops", JSON.stringify(next));
       return next;
     });
+    setSelectedStops(prev => {
+      const current = prev[stop.route] || [];
+      const next = current.filter(id => id !== stop.stopId);
+      const updated = { ...prev, [stop.route]: next };
+      localStorage.setItem("mta-selected-stops", JSON.stringify(updated));
+      return updated;
+    });
     setFavorites((prev) => {
       const next = prev.filter((f) => !(f.stopId === stop.stopId && f.route === stop.route));
       localStorage.setItem("mta-favorites", JSON.stringify(next));
@@ -1963,6 +1970,20 @@ export default function App() {
   };
 
   const restoreHiddenStops = () => {
+    setSelectedStops(prev => {
+      const updated = { ...prev };
+      hiddenStops.forEach(key => {
+        const [stopId, route] = [key.substring(0, key.lastIndexOf("-")), key.substring(key.lastIndexOf("-") + 1)];
+        if (route && stopId) {
+          const current = updated[route] || [];
+          if (!current.includes(stopId)) {
+            updated[route] = [...current, stopId];
+          }
+        }
+      });
+      localStorage.setItem("mta-selected-stops", JSON.stringify(updated));
+      return updated;
+    });
     setHiddenStops([]);
     localStorage.setItem("mta-hidden-stops", "[]");
   };
