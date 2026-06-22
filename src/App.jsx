@@ -90,10 +90,29 @@ function busSvg(color, bearing = 0, showDelayRing = false) {
   return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 38 38"><g transform="rotate(${bearing}, 19, 19)">${ring}<circle cx="19" cy="19" r="16" fill="${color}" opacity="0.25"/><circle cx="19" cy="19" r="12" fill="${color}"/><rect x="10" y="7" width="18" height="24" rx="5" fill="${color}" stroke="white" stroke-width="2"/><rect x="13" y="10" width="12" height="9" rx="2" fill="white" opacity="0.9"/><circle cx="14" cy="25" r="2" fill="white"/><circle cx="24" cy="25" r="2" fill="white"/><polygon points="19,3 17,7 21,7" fill="white" opacity="0.8"/></g></svg>`)}`;
 }
 
-function AlertCard({ alert, expanded }) {
+function AlertsList({ alerts }) {
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? alerts : alerts.slice(0, 3);
+  const hidden = alerts.length - 3;
+  return (
+    <>
+      <div className="alerts-grid">
+        {visible.map((a) => (
+          <AlertCard key={a.id} alert={a} />
+        ))}
+      </div>
+      {!showAll && hidden > 0 && (
+        <button className="alerts-show-more" onClick={() => setShowAll(true)}>
+          Show {hidden} more alert{hidden !== 1 ? "s" : ""}
+        </button>
+      )}
+    </>
+  );
+}
+
+function AlertCard({ alert }) {
   const [open, setOpen] = useState(false);
   const hasDesc = !!alert.description;
-  const showToggle = hasDesc && !expanded;
   return (
     <div className="alert-card">
       <div className="alert-header">
@@ -108,14 +127,12 @@ function AlertCard({ alert, expanded }) {
       </div>
       <div className="alert-text">{alert.header}</div>
       {hasDesc && (
-        <div className="alert-desc" style={!open ? { display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } : {}}>
-          {alert.description}
-        </div>
-      )}
-      {showToggle && (
-        <button className="alert-expand-btn" onClick={() => setOpen(!open)}>
-          {open ? "Show less" : "Show more"}
-        </button>
+        <>
+          <div className={`alert-desc${open ? " expanded" : ""}`}>{alert.description}</div>
+          <button className="alert-expand-btn" onClick={() => setOpen(!open)}>
+            {open ? "Show less" : "Show more"}
+          </button>
+        </>
       )}
     </div>
   );
@@ -2400,11 +2417,7 @@ export default function App() {
               <p>All tracked routes are running normally</p>
             </div>
           ) : (
-            <div className="alerts-grid">
-              {filteredAlerts.map((a) => (
-                <AlertCard key={a.id} alert={a} />
-              ))}
-            </div>
+            <AlertsList alerts={filteredAlerts} />
           )}
         </div>
 
