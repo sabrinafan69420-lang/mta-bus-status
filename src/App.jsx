@@ -2277,9 +2277,7 @@ export default function App() {
                   </span>
                   {r}
                   <span className="route-count">{vehicleCounts[r]}</span>
-                  {!DEFAULT_ROUTES.includes(r) && (
-                    <span className="route-remove" onClick={(e) => { e.stopPropagation(); handleRemoveRoute(r); }}>✕</span>
-                  )}
+                  <span className="route-remove" onClick={(e) => { e.stopPropagation(); handleRemoveRoute(r); }} title="Remove route">✕</span>
                   <span className="route-edit" onClick={(e) => { e.stopPropagation(); handleEditRouteStops(r); }} title="Edit stops">✎</span>
                 </button>
               ))}

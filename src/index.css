@@ -1682,15 +1682,17 @@ body {
 }
 
 .route-remove {
-  font-size: 10px;
-  opacity: 0.5;
+  font-size: 11px;
   cursor: pointer;
-  padding: 0 2px;
-  transition: opacity 0.15s;
+  padding: 1px 4px;
+  border-radius: 4px;
+  color: rgba(255,255,255,0.5);
+  transition: all 0.15s;
 }
 
 .route-remove:hover {
-  opacity: 1;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.2);
 }
 
 /* === Mobile responsive === */
@@ -2580,6 +2582,6 @@ body {
 .stop-picker-confirm:disabled { opacity: 0.5; cursor: default; }
 
 /* Route edit button */
-.route-edit { font-size: 11px; color: var(--text-dim); cursor: pointer; padding: 0 2px; opacity: 0; transition: opacity 0.15s; }
-.route-toggle:hover .route-edit { opacity: 1; }
-.route-edit:hover { color: var(--accent); }
+.route-edit { font-size: 11px; color: rgba(255,255,255,0.5); cursor: pointer; padding: 1px 4px; border-radius: 4px; transition: all 0.15s; }
+.route-toggle:hover .route-edit { color: rgba(255,255,255,0.7); }
+.route-edit:hover { color: var(--accent); background: var(--accent-glow); }
