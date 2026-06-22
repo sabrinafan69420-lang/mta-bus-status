@@ -514,7 +514,7 @@ function NearbyStops({ stops, routeColors, userLocation, onLocate, onStopClick, 
     return (
       <div className="nearby-panel">
         <div className="section-title">Nearby Stops</div>
-        <button className="nearby-locate-btn" onClick={onLocate} disabled={geoLoading}>{geoLoading ? "⏳ Locating..." : "📍 Find me"}</button>
+        <button className="nearby-locate-btn" onClick={onLocate}>{geoLoading ? "⏳ Locating..." : "📍 Find me"}</button>
         {geoError && <div className="nearby-geo-error">{geoError}</div>}
       </div>
     );
@@ -1957,9 +1957,14 @@ export default function App() {
       return;
     }
     let done = false;
+    let watchId = null;
+    const cleanup = () => {
+      if (watchId != null) navigator.geolocation.clearWatch(watchId);
+    };
     const onSuccess = (pos) => {
       if (done) return;
       done = true;
+      cleanup();
       setGeoLoading(false);
       const { latitude: lat, longitude: lng } = pos.coords;
       setUserLocation({ lat, lng });
@@ -1969,17 +1974,24 @@ export default function App() {
     const onFail = (err) => {
       if (done) return;
       done = true;
+      cleanup();
       setGeoLoading(false);
-      if (err.code === 1) setGeoError("Location permission denied. Go to Settings > Safari > Location, then reload.");
-      else if (err.code === 2) setGeoError("Location unavailable. Check Location Services is on in Settings > Privacy.");
+      if (err.code === 1) {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        setGeoError(isIOS
+          ? "Location permission denied.\n\nTo fix:\n1. Close this tab completely\n2. Open Settings → Safari → Advanced → Website Data\n3. Tap Edit → find & delete this site\n4. Reopen the site and tap 'Find me'\n5. Tap 'Allow' on the popup"
+          : "Location permission denied. Check your browser location settings.");
+      }
+      else if (err.code === 2) setGeoError("Location unavailable. Check that Location Services is ON in Settings → Privacy → Location Services.");
       else setGeoError("Location timed out. Check your signal and try again.");
     };
-    navigator.geolocation.getCurrentPosition(onSuccess, onFail, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    watchId = navigator.geolocation.watchPosition(onSuccess, onFail, { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 });
     setTimeout(() => {
       if (!done) {
         done = true;
+        cleanup();
         setGeoLoading(false);
-        setGeoError("No response. Safari may have blocked location. Try: Settings > Privacy > Location Services > Safari > set to 'While Using'.");
+        setGeoError("No response from location services.\n\n1. Settings → Safari → Website Data → Edit → delete this site → Done\n2. Settings → Safari → Advanced → Website Data → delete this site\n3. Reload this page and tap 'Find me' again");
       }
     }, 18000);
   };
