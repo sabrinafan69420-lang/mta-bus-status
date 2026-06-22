@@ -498,8 +498,19 @@ function NotificationBanner({ permission, onRequest }) {
 }
 
 // === Feature: Nearby Stops ===
-function NearbyStops({ stops, routeColors, userLocation, onLocate, onStopClick, geoError, geoLoading }) {
+const NYC_PRESETS = [
+  { name: "Downtown Brooklyn", lat: 40.6928, lng: -73.9860 },
+  { name: "Midtown Manhattan", lat: 40.7549, lng: -73.9840 },
+  { name: "Harlem", lat: 40.8116, lng: -73.9465 },
+  { name: "Queens (Jackson Heights)", lat: 40.7557, lng: -73.8831 },
+  { name: "Bronx (161st St)", lat: 40.8292, lng: -73.9262 },
+  { name: "Flatbush, Brooklyn", lat: 40.6350, lng: -73.9620 },
+];
+
+function NearbyStops({ stops, routeColors, userLocation, onLocate, onStopClick, geoError, geoLoading, onSetLocation }) {
   const [nearby, setNearby] = useState([]);
+  const [manualQuery, setManualQuery] = useState("");
+  const [manualResults, setManualResults] = useState([]);
   useEffect(() => {
     if (!userLocation || !Array.isArray(stops) || stops.length === 0) return;
     const withDist = stops.filter(s => s?.lat != null && s?.lon != null).map(s => ({
@@ -510,12 +521,40 @@ function NearbyStops({ stops, routeColors, userLocation, onLocate, onStopClick, 
     setNearby(withDist.slice(0, 10));
   }, [userLocation, stops]);
 
+  const handleManualSearch = async () => {
+    if (!manualQuery.trim()) return;
+    try {
+      const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(manualQuery)}.json?access_token=${mapboxgl.accessToken}&types=place,address&limit=5`);
+      const data = await res.json();
+      setManualResults((data.features || []).map(f => ({ name: f.place_name, lat: f.center[1], lng: f.center[0] })));
+    } catch {}
+  };
+
   if (!userLocation) {
     return (
       <div className="nearby-panel">
         <div className="section-title">Nearby Stops</div>
         <button className="nearby-locate-btn" onClick={onLocate}>{geoLoading ? "⏳ Locating..." : "📍 Find me"}</button>
         {geoError && <div className="nearby-geo-error">{geoError}</div>}
+        <div className="nearby-manual">
+          <div className="nearby-manual-label">Or enter a location:</div>
+          <div className="nearby-manual-row">
+            <input className="nearby-manual-input" placeholder="Address, neighborhood, or zip..." value={manualQuery} onChange={e => { setManualQuery(e.target.value); setManualResults([]); }} onKeyDown={e => e.key === "Enter" && handleManualSearch()} />
+            <button className="nearby-manual-btn" onClick={handleManualSearch}>Go</button>
+          </div>
+          {manualResults.length > 0 && (
+            <div className="nearby-manual-results">
+              {manualResults.map((r, i) => (
+                <div key={i} className="nearby-manual-result" onClick={() => { onSetLocation(r.lat, r.lng); setManualResults([]); setManualQuery(""); }}>{r.name}</div>
+              ))}
+            </div>
+          )}
+          <div className="nearby-presets">
+            {NYC_PRESETS.map(p => (
+              <button key={p.name} className="nearby-preset-btn" onClick={() => onSetLocation(p.lat, p.lng)}>{p.name}</button>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
@@ -2002,6 +2041,12 @@ export default function App() {
     if (mobileSheet === "nearby") setMobileSheet(null);
   };
 
+  const handleSetLocation = (lat, lng) => {
+    setUserLocation({ lat, lng });
+    const mapEl = document.querySelector(".map-container");
+    if (mapEl && mapEl.__flyToCoords) mapEl.__flyToCoords(lng, lat);
+  };
+
   const handleShare = () => {
     const url = window.location.href;
     navigator.clipboard.writeText(url).then(() => {
@@ -2522,7 +2567,7 @@ export default function App() {
 
         {/* Feature 1: Nearby Stops */}
         <div className={`panel ${mobileSheet === "nearby" ? "mobile-visible" : ""}`}>
-          <NearbyStops stops={allStopsFlat} routeColors={routeColors} userLocation={userLocation} onLocate={handleGoToMe} onStopClick={handleNearbyStopClick} geoError={geoError} geoLoading={geoLoading} />
+          <NearbyStops stops={allStopsFlat} routeColors={routeColors} userLocation={userLocation} onLocate={handleGoToMe} onStopClick={handleNearbyStopClick} geoError={geoError} geoLoading={geoLoading} onSetLocation={handleSetLocation} />
         </div>
 
         {/* Feature 3: Route Performance Stats */}
