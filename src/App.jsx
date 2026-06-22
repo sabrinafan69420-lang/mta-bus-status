@@ -1730,6 +1730,16 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
       mapContainer.current._fitAllBuses = fitAllBuses;
       mapContainer.current._goToUserLocation = goToUserLocation;
       mapContainer.current._zoomToStop = zoomToStop;
+      mapContainer.current.__flyToCoords = (lng, lat) => {
+        const map = mapRef.current;
+        if (!map) return;
+        map.flyTo({ center: [lng, lat], zoom: 14, duration: 1200 });
+        if (userMarkerRef.current) userMarkerRef.current.remove();
+        const el = document.createElement("div");
+        el.className = "user-marker";
+        el.style.cssText = "width:16px;height:16px;border-radius:50%;background:#4285f4;border:3px solid white;box-shadow:0 0 0 2px #4285f4,0 2px 8px rgba(0,0,0,0.3);transform-origin:center center;";
+        userMarkerRef.current = new mapboxgl.Marker(el).setLngLat([lng, lat]).addTo(map);
+      };
     }
   }, [fitAllBuses, goToUserLocation, zoomToStop]);
 
@@ -1943,10 +1953,13 @@ export default function App() {
       setGeoError("Geolocation not supported");
       return;
     }
-    const mapEl = document.querySelector(".map-container");
-    if (mapEl && mapEl._goToUserLocation) mapEl._goToUserLocation();
     navigator.geolocation.getCurrentPosition(
-      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setUserLocation({ lat, lng });
+        const mapEl = document.querySelector(".map-container");
+        if (mapEl && mapEl.__flyToCoords) mapEl.__flyToCoords(lng, lat);
+      },
       (err) => {
         if (err.code === 1) setGeoError("Location permission denied. Enable in Settings.");
         else if (err.code === 2) setGeoError("Location unavailable. Check your connection.");
