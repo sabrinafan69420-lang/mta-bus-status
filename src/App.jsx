@@ -498,7 +498,7 @@ function NotificationBanner({ permission, onRequest }) {
 }
 
 // === Feature: Nearby Stops ===
-function NearbyStops({ stops, routeColors, userLocation, onLocate }) {
+function NearbyStops({ stops, routeColors, userLocation, onLocate, onStopClick, geoError }) {
   const [nearby, setNearby] = useState([]);
   useEffect(() => {
     if (!userLocation || !Array.isArray(stops) || stops.length === 0) return;
@@ -515,6 +515,7 @@ function NearbyStops({ stops, routeColors, userLocation, onLocate }) {
       <div className="nearby-panel">
         <div className="section-title">Nearby Stops</div>
         <button className="nearby-locate-btn" onClick={onLocate}>📍 Find me</button>
+        {geoError && <div className="nearby-geo-error">{geoError}</div>}
       </div>
     );
   }
@@ -529,7 +530,7 @@ function NearbyStops({ stops, routeColors, userLocation, onLocate }) {
           {nearby.map(s => {
             const dist = s.dist < 1000 ? `${Math.round(s.dist)}m` : `${(s.dist / 1000).toFixed(1)}km`;
             return (
-              <div key={`${s.route}-${s.id}`} className="nearby-stop">
+              <div key={`${s.route}-${s.id}`} className="nearby-stop" onClick={() => onStopClick?.({ lat: s.lat, lon: s.lon, name: s.name, id: s.id, route: s.route })}>
                 <span className="nearby-stop-route" style={{ background: routeColors[s.route] || "#888" }}>{s.route}</span>
                 <div className="nearby-stop-info">
                   <span className="nearby-stop-name">{s.name}</span>
@@ -1935,16 +1936,30 @@ export default function App() {
     if (mapEl && mapEl._fitAllBuses) mapEl._fitAllBuses();
   };
 
+  const [geoError, setGeoError] = useState(null);
   const handleGoToMe = () => {
+    setGeoError(null);
+    if (!navigator.geolocation) {
+      setGeoError("Geolocation not supported");
+      return;
+    }
     const mapEl = document.querySelector(".map-container");
     if (mapEl && mapEl._goToUserLocation) mapEl._goToUserLocation();
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => {},
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => {
+        if (err.code === 1) setGeoError("Location permission denied. Enable in Settings.");
+        else if (err.code === 2) setGeoError("Location unavailable. Check your connection.");
+        else setGeoError("Location request timed out. Try again.");
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const handleNearbyStopClick = (stop) => {
+    const mapEl = document.querySelector(".map-container");
+    if (mapEl && mapEl._zoomToStop) mapEl._zoomToStop(stop);
+    if (mobileSheet === "nearby") setMobileSheet(null);
   };
 
   const handleShare = () => {
@@ -2467,7 +2482,7 @@ export default function App() {
 
         {/* Feature 1: Nearby Stops */}
         <div className={`panel ${mobileSheet === "nearby" ? "mobile-visible" : ""}`}>
-          <NearbyStops stops={allStopsFlat} routeColors={routeColors} userLocation={userLocation} onLocate={handleGoToMe} />
+          <NearbyStops stops={allStopsFlat} routeColors={routeColors} userLocation={userLocation} onLocate={handleGoToMe} onStopClick={handleNearbyStopClick} geoError={geoError} />
         </div>
 
         {/* Feature 3: Route Performance Stats */}

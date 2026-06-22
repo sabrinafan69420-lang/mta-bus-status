@@ -2073,6 +2073,16 @@ body {
   color: white;
 }
 
+.nearby-geo-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 8px;
+}
+
 .nearby-list {
   display: flex;
   flex-direction: column;
@@ -2087,11 +2097,16 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background 0.15s;
+  cursor: pointer;
 }
 
 .nearby-stop:hover {
   border-color: var(--accent);
+}
+
+.nearby-stop:active {
+  background: var(--bg);
 }
 
 .nearby-stop-route {
