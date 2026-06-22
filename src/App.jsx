@@ -2093,7 +2093,6 @@ export default function App() {
   };
 
   const handleRemoveRoute = (route) => {
-    if (DEFAULT_ROUTES.includes(route)) return;
     setTrackedRoutes((prev) => prev.filter((r) => r !== route));
     setVisibleRoutes((prev) => prev.filter((r) => r !== route));
     setPolylines((prev) => { const n = { ...prev }; delete n[route]; return n; });
