@@ -2574,6 +2574,11 @@ body {
 .stop-picker-actions button { padding: 3px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); font-size: 11px; cursor: pointer; }
 .stop-picker-actions button:hover { border-color: var(--accent); color: var(--text); }
 .stop-picker-list { flex: 1; overflow-y: auto; padding: 0 16px 8px; max-height: 400px; }
+.stop-picker-group { margin-bottom: 4px; }
+.stop-picker-group-header { display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; cursor: pointer; border-radius: 6px; transition: background 0.15s; }
+.stop-picker-group-header:hover { background: var(--surface-2); }
+.stop-picker-group-label { font-size: 12px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
+.stop-picker-group-count { font-size: 10px; color: var(--text-dim); }
 .stop-picker-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 12px; }
 .stop-picker-item:hover { background: var(--surface-2); }
 .stop-picker-item.checked { background: var(--accent-glow); }

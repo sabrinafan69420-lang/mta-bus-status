@@ -1208,6 +1208,9 @@ function UserReports({ trackedRoutes, routeColors }) {
 }
 
 // === Feature: Stop Picker ===
+const DIR_LABELS = { N: "Northbound", S: "Southbound", E: "Eastbound", W: "Westbound", NE: "Northeast", NW: "Northwest", SE: "Southeast", SW: "Southwest" };
+const DIR_ORDER = ["N", "S", "E", "W", "NE", "NW", "SE", "SW"];
+
 function StopPicker({ route, stops, selected, onConfirm, onCancel, routeColor }) {
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState(() => new Set(selected || []));
@@ -1217,6 +1220,23 @@ function StopPicker({ route, stops, selected, onConfirm, onCancel, routeColor })
     const q = query.toLowerCase();
     return stops.filter(s => s.name?.toLowerCase().includes(q) || s.id?.includes(q));
   }, [stops, query]);
+
+  const grouped = useMemo(() => {
+    const groups = {};
+    const ungrouped = [];
+    filtered.forEach(s => {
+      const d = s.direction?.toUpperCase();
+      if (d && DIR_LABELS[d]) {
+        if (!groups[d]) groups[d] = [];
+        groups[d].push(s);
+      } else {
+        ungrouped.push(s);
+      }
+    });
+    const sorted = DIR_ORDER.filter(d => groups[d]).map(d => ({ dir: d, label: DIR_LABELS[d], stops: groups[d] }));
+    if (ungrouped.length > 0) sorted.push({ dir: null, label: "Other", stops: ungrouped });
+    return sorted;
+  }, [filtered]);
 
   const toggle = (stopId) => {
     setPicked(prev => {
@@ -1228,6 +1248,15 @@ function StopPicker({ route, stops, selected, onConfirm, onCancel, routeColor })
 
   const selectAll = () => setPicked(new Set(stops.map(s => s.id)));
   const selectNone = () => setPicked(new Set());
+
+  const selectDir = (dirStops) => {
+    setPicked(prev => {
+      const next = new Set(prev);
+      const allSelected = dirStops.every(s => next.has(s.id));
+      dirStops.forEach(s => allSelected ? next.delete(s.id) : next.add(s.id));
+      return next;
+    });
+  };
 
   return (
     <div className="stop-picker-overlay" onClick={onCancel}>
@@ -1247,14 +1276,22 @@ function StopPicker({ route, stops, selected, onConfirm, onCancel, routeColor })
           <button onClick={selectNone}>None</button>
         </div>
         <div className="stop-picker-list">
-          {filtered.map(s => (
-            <label key={s.id} className={`stop-picker-item ${picked.has(s.id) ? "checked" : ""}`}>
-              <input type="checkbox" checked={picked.has(s.id)} onChange={() => toggle(s.id)} />
-              <span className="stop-picker-name">{s.name}</span>
-              <span className="stop-picker-id">{s.id}</span>
-            </label>
+          {grouped.map(g => (
+            <div key={g.dir || "other"} className="stop-picker-group">
+              <div className="stop-picker-group-header" onClick={() => selectDir(g.stops)}>
+                <span className="stop-picker-group-label">{g.label}</span>
+                <span className="stop-picker-group-count">{g.stops.filter(s => picked.has(s.id)).length} / {g.stops.length}</span>
+              </div>
+              {g.stops.map(s => (
+                <label key={s.id} className={`stop-picker-item ${picked.has(s.id) ? "checked" : ""}`}>
+                  <input type="checkbox" checked={picked.has(s.id)} onChange={() => toggle(s.id)} />
+                  <span className="stop-picker-name">{s.name}</span>
+                  <span className="stop-picker-id">{s.id}</span>
+                </label>
+              ))}
+            </div>
           ))}
-          {filtered.length === 0 && <div className="stop-picker-empty">No stops found</div>}
+          {grouped.length === 0 && <div className="stop-picker-empty">No stops found</div>}
         </div>
         <div className="stop-picker-footer">
           <button className="stop-picker-cancel" onClick={onCancel}>Cancel</button>
