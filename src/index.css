@@ -281,6 +281,22 @@ body {
   margin-top: 8px;
 }
 
+.alert-expand-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-top: 4px;
+  font-family: inherit;
+}
+
+.alert-expand-btn:hover {
+  text-decoration: underline;
+}
+
 /* No alerts */
 .no-alerts {
   background: var(--surface);
