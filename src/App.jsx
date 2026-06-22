@@ -1050,7 +1050,7 @@ function SubwayConnections({ stops }) {
 
   const fetchSubway = async () => {
     if (open) { setOpen(false); return; }
-    const stopsWithCoords = (Array.isArray(stops) ? stops : []).filter(s => s?.lat != null && s?.lon != null).slice(0, 5);
+    const stopsWithCoords = (Array.isArray(stops) ? stops : []).filter(s => s?.lat != null && s?.lon != null);
     if (stopsWithCoords.length === 0) return;
     setLoading(true);
     const data = {};
@@ -1058,8 +1058,8 @@ function SubwayConnections({ stops }) {
       try {
         const r = await fetch(`/api/subway-stations?lat=${stop.lat}&lon=${stop.lon}&radius=800`);
         const d = await r.json();
-        data[stop.stopId] = d.stations || [];
-      } catch { data[stop.stopId] = []; }
+        data[stop.id || stop.stopId] = d.stations || [];
+      } catch { data[stop.id || stop.stopId] = []; }
     }));
     setSubwayData(data);
     setLoading(false);
@@ -1077,7 +1077,7 @@ function SubwayConnections({ stops }) {
         <div className="subway-list">
           {Object.entries(subwayData).map(([stopId, stations]) => {
             if (!stations.length) return null;
-            const stop = (Array.isArray(stops) ? stops : []).find(s => s.stopId === stopId);
+            const stop = (Array.isArray(stops) ? stops : []).find(s => (s.id || s.stopId) === stopId);
             return (
               <div key={stopId} className="subway-stop-group">
                 <div className="subway-stop-name">{stop?.name || stopId}</div>
