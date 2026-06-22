@@ -1722,6 +1722,9 @@ export default function App() {
   const [favorites, setFavorites] = useState(() => {
     try { return JSON.parse(localStorage.getItem("mta-favorites") || "[]"); } catch { return []; }
   });
+  const [selectedStops, setSelectedStops] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("mta-selected-stops") || "{}"); } catch { return {}; }
+  });
   const [hiddenStops, setHiddenStops] = useState(() => {
     try { return JSON.parse(localStorage.getItem("mta-hidden-stops") || "[]"); } catch { return []; }
   });
@@ -2060,6 +2063,11 @@ export default function App() {
       setTrackedRoutes((prev) => [...prev, pickerRoute]);
       setVisibleRoutes((prev) => [...prev, pickerRoute]);
     }
+    setSelectedStops(prev => {
+      const next = { ...prev, [pickerRoute]: selectedStopIds };
+      localStorage.setItem("mta-selected-stops", JSON.stringify(next));
+      return next;
+    });
     const routeStopsData = pickerStops.filter(s => selectedStopIds.includes(s.id));
     setFavorites(prev => {
       const existing = prev.filter(f => f.route !== pickerRoute);
@@ -2095,6 +2103,11 @@ export default function App() {
     setVisibleRoutes((prev) => prev.filter((r) => r !== route));
     setPolylines((prev) => { const n = { ...prev }; delete n[route]; return n; });
     setRouteStops((prev) => { const n = { ...prev }; delete n[route]; return n; });
+    setSelectedStops(prev => {
+      const next = { ...prev }; delete next[route];
+      localStorage.setItem("mta-selected-stops", JSON.stringify(next));
+      return next;
+    });
   };
 
   // Feature 6: Load saved view
@@ -2110,9 +2123,11 @@ export default function App() {
     try {
       const routesQuery = trackedRoutes.join(",");
       const stopsQuery = trackedRoutes.map(route => {
-        const routeFavs = favorites.filter(f => f.route === route);
-        if (routeFavs.length === 0) return null;
-        return `${route}:${routeFavs.map(f => f.stopId).join(",")}`;
+        const routeSelected = selectedStops[route];
+        if (routeSelected && routeSelected.length > 0) {
+          return `${route}:${routeSelected.join(",")}`;
+        }
+        return null;
       }).filter(Boolean).join("|");
       const arrivalsUrl = `/api/arrivals?routes=${encodeURIComponent(routesQuery)}${stopsQuery ? `&stops=${encodeURIComponent(stopsQuery)}` : ""}`;
       const [alertsRes, stopsRes, vehiclesRes] = await Promise.all([
@@ -2133,7 +2148,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [trackedRoutes, hiddenStops, favorites]);
+  }, [trackedRoutes, hiddenStops, selectedStops]);
 
   const fetchPolylinesAndStops = useCallback(async () => {
     try {
@@ -2466,7 +2481,7 @@ export default function App() {
         <StopPicker
           route={pickerRoute}
           stops={pickerStops}
-          selected={editingRoute ? favorites.filter(f => f.route === pickerRoute).map(f => f.stopId) : []}
+          selected={selectedStops[pickerRoute] || []}
           onConfirm={handlePickerConfirm}
           onCancel={handlePickerCancel}
           routeColor={routeColors[pickerRoute]}
