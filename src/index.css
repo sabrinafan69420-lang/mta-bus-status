@@ -52,6 +52,8 @@ body {
   color: var(--text);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
 }
 
 .app {
@@ -469,6 +471,7 @@ body {
   font-size: 11px;
   color: var(--text-dim);
   border-top: 1px solid var(--border);
+  padding-bottom: max(20px, env(safe-area-inset-bottom));
 }
 
 .footer a {
@@ -1701,25 +1704,78 @@ body {
     padding: 12px;
   }
 
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+  }
+
+  .header-left {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .header h1 {
     font-size: 18px;
   }
 
+  .header h1 span {
+    display: none;
+  }
+
   .header-right {
     gap: 6px;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .refresh-info {
+    font-size: 11px;
   }
 
   .map-container {
-    height: 350px;
+    height: 300px;
+  }
+
+  .map-header {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+    padding: 12px;
   }
 
   .map-controls {
     flex-wrap: wrap;
     gap: 6px;
+    justify-content: center;
   }
 
   .search-input {
-    width: 140px;
+    width: 100%;
+  }
+
+  .search-container {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .map-route-toggles {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .route-toggle {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .route-count {
+    font-size: 9px;
+    padding: 0 4px;
+    line-height: 16px;
+    min-width: 16px;
   }
 
   .desktop-only {
@@ -1729,16 +1785,24 @@ body {
   .mobile-tabs {
     display: flex;
     gap: 0;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .mobile-tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .mobile-tab {
-    flex: 1;
-    padding: 10px 6px;
+    flex: 0 0 auto;
+    padding: 10px 12px;
     background: none;
     border: none;
     color: var(--text-dim);
@@ -1748,6 +1812,7 @@ body {
     transition: all 0.2s;
     font-family: inherit;
     border-bottom: 2px solid transparent;
+    white-space: nowrap;
   }
 
   .mobile-tab.active {
@@ -1768,13 +1833,71 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .stop-card-header {
+    padding: 12px 14px 10px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .stop-card-actions {
+    gap: 4px;
+  }
+
+  .stop-name {
+    font-size: 13px;
+  }
+
+  .arrival-row {
+    padding: 8px 14px;
+    gap: 8px;
+  }
+
+  .arrival-mins {
+    font-size: 18px;
+  }
+
+  .arrival-route {
+    font-size: 12px;
+    min-width: 32px;
+  }
+
+  .arrival-dest {
+    font-size: 12px;
+  }
+
   .route-pills {
     flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .route-pill {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .add-route-section {
+    margin-bottom: 12px;
+  }
+
+  .add-route-input {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+
+  .add-route-btn {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 18px;
+  }
+
+  .add-route-hint {
+    font-size: 10px;
   }
 
   .departure-header-row,
   .departure-row {
     grid-template-columns: 55px 1fr 70px 50px;
+    padding: 6px 12px;
   }
 
   .dep-col-dest {
@@ -1783,6 +1906,45 @@ body {
 
   .departure-header-row .dep-col-dest {
     display: none;
+  }
+
+  .section-title {
+    font-size: 12px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .restore-hidden-btn {
+    font-size: 10px;
+    padding: 3px 8px;
+  }
+
+  .footer {
+    font-size: 10px;
+    padding: 16px 12px;
+  }
+
+  .alert-card {
+    padding: 14px;
+  }
+
+  .alert-text {
+    font-size: 13px;
+  }
+
+  .no-alerts {
+    padding: 24px;
+  }
+
+  .map-legend {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+    justify-content: center;
+  }
+
+  .legend-item {
+    font-size: 11px;
   }
 }
 
