@@ -1949,12 +1949,6 @@ export default function App() {
   const isFav = (stop) => favorites.some((f) => f.stopId === stop.stopId && f.route === stop.route);
 
   const removeStop = (stop) => {
-    const key = `${stop.stopId}-${stop.route}`;
-    setHiddenStops((prev) => {
-      const next = [...prev, key];
-      localStorage.setItem("mta-hidden-stops", JSON.stringify(next));
-      return next;
-    });
     setSelectedStops(prev => {
       const current = prev[stop.route] || [];
       const next = current.filter(id => id !== stop.stopId);
