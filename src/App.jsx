@@ -2114,9 +2114,15 @@ export default function App() {
   const fetchData = useCallback(async () => {
     try {
       const routesQuery = trackedRoutes.join(",");
+      const stopsQuery = trackedRoutes.map(route => {
+        const routeFavs = favorites.filter(f => f.route === route);
+        if (routeFavs.length === 0) return null;
+        return `${route}:${routeFavs.map(f => f.stopId).join(",")}`;
+      }).filter(Boolean).join("|");
+      const arrivalsUrl = `/api/arrivals?routes=${encodeURIComponent(routesQuery)}${stopsQuery ? `&stops=${encodeURIComponent(stopsQuery)}` : ""}`;
       const [alertsRes, stopsRes, vehiclesRes] = await Promise.all([
         fetch("/api/alerts"),
-        fetch(`/api/arrivals?routes=${encodeURIComponent(routesQuery)}`),
+        fetch(arrivalsUrl),
         fetch(`/api/vehicles?routes=${encodeURIComponent(routesQuery)}`),
       ]);
       const alertsData = await alertsRes.json();
@@ -2132,7 +2138,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [trackedRoutes, hiddenStops]);
+  }, [trackedRoutes, hiddenStops, favorites]);
 
   const fetchPolylinesAndStops = useCallback(async () => {
     try {

@@ -51,6 +51,17 @@ export default async function handler(req, res) {
   try {
     const routesParam = req.query.routes || "";
     const extraRoutes = routesParam ? routesParam.split(",").map(r => r.trim().toUpperCase()).filter(Boolean) : [];
+    // stops param: "ROUTE:ID,ID|ROUTE2:ID,ID" — which specific stops the user selected per route
+    const stopsParam = req.query.stops || "";
+    const userStops = {};
+    if (stopsParam) {
+      stopsParam.split("|").forEach(part => {
+        const [route, ids] = part.split(":");
+        if (route && ids) {
+          userStops[route.toUpperCase()] = ids.split(",").map(id => id.trim()).filter(Boolean);
+        }
+      });
+    }
 
     const favResults = await Promise.all(FAVORITES.map(async (fav) => {
       try {
@@ -62,6 +73,12 @@ export default async function handler(req, res) {
     const extraResults = [];
     if (extraRoutes.length > 0) {
       const stopLists = await Promise.all(extraRoutes.map(async (route) => {
+        const userStopIds = userStops[route];
+        if (userStopIds && userStopIds.length > 0) {
+          const allStops = await getStopsForRoute(route);
+          const selected = userStopIds.map(id => allStops.find(s => s.stopId === id)).filter(Boolean);
+          if (selected.length > 0) return { route, stops: selected };
+        }
         const stops = await getStopsForRoute(route);
         return { route, stops: stops.slice(0, 3) };
       }));
