@@ -891,16 +891,19 @@ function PastDepartures({ departures }) {
 }
 
 // === Feature: System Stats ===
-function SystemStats({ vehicles, stops, alerts }) {
-  const totalBuses = vehicles.length;
+function SystemStats({ vehicles, stops, alerts, trackedRoutes }) {
+  const routeVehicles = useMemo(() => vehicles.filter(v => trackedRoutes.includes(v.route)), [vehicles, trackedRoutes]);
+  const routeAlerts = useMemo(() => alerts.filter(a => a.routes?.some(r => trackedRoutes.includes(r))), [alerts, trackedRoutes]);
+  const totalBuses = routeVehicles.length;
   const totalStops = (Array.isArray(stops) ? stops : []).length;
-  const delayedBuses = vehicles.filter(v => v.progressRate === "delayed").length;
-  const avgSpeed = vehicles.filter(v => v.speed > 0).reduce((sum, v) => sum + v.speed, 0) / (vehicles.filter(v => v.speed > 0).length || 1);
-  const fullBuses = vehicles.filter(v => v.occupancy === "full").length;
+  const delayedBuses = routeVehicles.filter(v => v.progressRate === "delayed").length;
+  const fullBuses = routeVehicles.filter(v => v.occupancy === "full").length;
+  const onTime = routeVehicles.filter(v => v.progressRate === "in progress" || v.progressRate === "normalProgress" || v.progressRate === "unknown").length;
+  const onTimePct = totalBuses > 0 ? Math.round(onTime / totalBuses * 100) : 100;
 
   return (
     <div className="system-stats">
-      <div className="section-title">System Overview</div>
+      <div className="section-title">System Overview <span className="count">({trackedRoutes.join(" · ")})</span></div>
       <div className="sys-stats-grid">
         <div className="sys-stat-card">
           <div className="sys-stat-icon">🚌</div>
@@ -913,9 +916,9 @@ function SystemStats({ vehicles, stops, alerts }) {
           <div className="sys-stat-label">Delayed</div>
         </div>
         <div className="sys-stat-card">
-          <div className="sys-stat-icon">⚡</div>
-          <div className="sys-stat-value">{Math.round(avgSpeed)}</div>
-          <div className="sys-stat-label">Avg Speed (mph)</div>
+          <div className="sys-stat-icon">✅</div>
+          <div className="sys-stat-value">{onTimePct}%</div>
+          <div className="sys-stat-label">On Time</div>
         </div>
         <div className="sys-stat-card">
           <div className="sys-stat-icon">🔴</div>
@@ -929,8 +932,8 @@ function SystemStats({ vehicles, stops, alerts }) {
         </div>
         <div className="sys-stat-card">
           <div className="sys-stat-icon">🔔</div>
-          <div className="sys-stat-value">{alerts.length}</div>
-          <div className="sys-stat-label">Active Alerts</div>
+          <div className="sys-stat-value">{routeAlerts.length}</div>
+          <div className="sys-stat-label">Route Alerts</div>
         </div>
       </div>
     </div>
@@ -2379,7 +2382,7 @@ export default function App() {
       </div>
 
       {/* Feature 10: System Stats */}
-      <SystemStats vehicles={vehicles} stops={stops} alerts={alerts} />
+      <SystemStats vehicles={vehicles} stops={stops} alerts={alerts} trackedRoutes={trackedRoutes} />
 
       {/* Map */}
       <div className="map-section">
