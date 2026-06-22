@@ -143,7 +143,7 @@ function ArrivalRow({ arrival }) {
   );
 }
 
-function StopCard({ stop, isFavorite, onToggleFavorite, routeColors, accessibility }) {
+function StopCard({ stop, isFavorite, onToggleFavorite, onRemoveStop, onEditStops, routeColors, accessibility }) {
   const wheelInfo = accessibility?.stops?.find(s => s.id === stop.stopId);
   return (
     <div className="stop-card">
@@ -165,6 +165,16 @@ function StopCard({ stop, isFavorite, onToggleFavorite, routeColors, accessibili
           >
             {isFavorite ? "★" : "☆"}
           </button>
+          <button
+            className="stop-card-edit-btn"
+            onClick={() => onEditStops?.(stop.route)}
+            title="Edit stops for this route"
+          >✎</button>
+          <button
+            className="stop-card-remove-btn"
+            onClick={() => onRemoveStop?.(stop)}
+            title="Remove this stop"
+          >✕</button>
           <span className="stop-route-badge" style={{ background: routeColors[stop.route] || "var(--accent)" }}>{stop.route}</span>
         </div>
       </div>
@@ -1900,6 +1910,14 @@ export default function App() {
 
   const isFav = (stop) => favorites.some((f) => f.stopId === stop.stopId && f.route === stop.route);
 
+  const removeStop = (stop) => {
+    setFavorites((prev) => {
+      const next = prev.filter((f) => !(f.stopId === stop.stopId && f.route === stop.route));
+      localStorage.setItem("mta-favorites", JSON.stringify(next));
+      return next;
+    });
+  };
+
   const sortedStops = useMemo(() => {
     const fav = stops.filter((s) => isFav(s));
     const rest = stops.filter((s) => !isFav(s));
@@ -2293,7 +2311,7 @@ export default function App() {
           <div className="section-title">Live Arrivals {favorites.length > 0 && <span className="count">({favorites.length} starred)</span>}</div>
           <div className="arrivals-grid">
             {sortedStops.map((s) => (
-              <StopCard key={`${s.stopId}-${s.route}`} stop={s} isFavorite={isFav(s)} onToggleFavorite={toggleFavorite} routeColors={routeColors} />
+              <StopCard key={`${s.stopId}-${s.route}`} stop={s} isFavorite={isFav(s)} onToggleFavorite={toggleFavorite} onRemoveStop={removeStop} onEditStops={handleEditRouteStops} routeColors={routeColors} />
             ))}
           </div>
         </div>
