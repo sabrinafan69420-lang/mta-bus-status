@@ -498,7 +498,7 @@ function NotificationBanner({ permission, onRequest }) {
 }
 
 // === Feature: Nearby Stops ===
-function NearbyStops({ stops, routeColors, userLocation, onLocate, onStopClick, geoError }) {
+function NearbyStops({ stops, routeColors, userLocation, onLocate, onStopClick, geoError, geoLoading }) {
   const [nearby, setNearby] = useState([]);
   useEffect(() => {
     if (!userLocation || !Array.isArray(stops) || stops.length === 0) return;
@@ -514,7 +514,7 @@ function NearbyStops({ stops, routeColors, userLocation, onLocate, onStopClick, 
     return (
       <div className="nearby-panel">
         <div className="section-title">Nearby Stops</div>
-        <button className="nearby-locate-btn" onClick={onLocate}>📍 Find me</button>
+        <button className="nearby-locate-btn" onClick={onLocate} disabled={geoLoading}>{geoLoading ? "⏳ Locating..." : "📍 Find me"}</button>
         {geoError && <div className="nearby-geo-error">{geoError}</div>}
       </div>
     );
@@ -1947,26 +1947,41 @@ export default function App() {
   };
 
   const [geoError, setGeoError] = useState(null);
+  const [geoLoading, setGeoLoading] = useState(false);
   const handleGoToMe = () => {
     setGeoError(null);
+    setGeoLoading(true);
     if (!navigator.geolocation) {
-      setGeoError("Geolocation not supported");
+      setGeoError("Geolocation not supported by this browser");
+      setGeoLoading(false);
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
-        setUserLocation({ lat, lng });
-        const mapEl = document.querySelector(".map-container");
-        if (mapEl && mapEl.__flyToCoords) mapEl.__flyToCoords(lng, lat);
-      },
-      (err) => {
-        if (err.code === 1) setGeoError("Location permission denied. Enable in Settings.");
-        else if (err.code === 2) setGeoError("Location unavailable. Check your connection.");
-        else setGeoError("Location request timed out. Try again.");
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+    let done = false;
+    const onSuccess = (pos) => {
+      if (done) return;
+      done = true;
+      setGeoLoading(false);
+      const { latitude: lat, longitude: lng } = pos.coords;
+      setUserLocation({ lat, lng });
+      const mapEl = document.querySelector(".map-container");
+      if (mapEl && mapEl.__flyToCoords) mapEl.__flyToCoords(lng, lat);
+    };
+    const onFail = (err) => {
+      if (done) return;
+      done = true;
+      setGeoLoading(false);
+      if (err.code === 1) setGeoError("Location permission denied. Go to Settings > Safari > Location, then reload.");
+      else if (err.code === 2) setGeoError("Location unavailable. Check Location Services is on in Settings > Privacy.");
+      else setGeoError("Location timed out. Check your signal and try again.");
+    };
+    navigator.geolocation.getCurrentPosition(onSuccess, onFail, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+    setTimeout(() => {
+      if (!done) {
+        done = true;
+        setGeoLoading(false);
+        setGeoError("No response. Safari may have blocked location. Try: Settings > Privacy > Location Services > Safari > set to 'While Using'.");
+      }
+    }, 18000);
   };
 
   const handleNearbyStopClick = (stop) => {
@@ -2495,7 +2510,7 @@ export default function App() {
 
         {/* Feature 1: Nearby Stops */}
         <div className={`panel ${mobileSheet === "nearby" ? "mobile-visible" : ""}`}>
-          <NearbyStops stops={allStopsFlat} routeColors={routeColors} userLocation={userLocation} onLocate={handleGoToMe} onStopClick={handleNearbyStopClick} geoError={geoError} />
+          <NearbyStops stops={allStopsFlat} routeColors={routeColors} userLocation={userLocation} onLocate={handleGoToMe} onStopClick={handleNearbyStopClick} geoError={geoError} geoLoading={geoLoading} />
         </div>
 
         {/* Feature 3: Route Performance Stats */}
