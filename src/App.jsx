@@ -1725,9 +1725,6 @@ export default function App() {
   const [selectedStops, setSelectedStops] = useState(() => {
     try { return JSON.parse(localStorage.getItem("mta-selected-stops") || "{}"); } catch { return {}; }
   });
-  const [hiddenStops, setHiddenStops] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("mta-hidden-stops") || "[]"); } catch { return []; }
-  });
   const [scheduleRoute, setScheduleRoute] = useState(null);
   const [mobileSheet, setMobileSheet] = useState("arrivals");
   const [theme, setTheme] = useState(() => localStorage.getItem("mta-theme") || "dark");
@@ -1964,24 +1961,6 @@ export default function App() {
     setStops(prev => prev.filter(s => !(s.stopId === stop.stopId && s.route === stop.route)));
   };
 
-  const restoreHiddenStops = () => {
-    setSelectedStops(prev => {
-      const updated = { ...prev };
-      hiddenStops.forEach(key => {
-        const [stopId, route] = [key.substring(0, key.lastIndexOf("-")), key.substring(key.lastIndexOf("-") + 1)];
-        if (route && stopId) {
-          const current = updated[route] || [];
-          if (!current.includes(stopId)) {
-            updated[route] = [...current, stopId];
-          }
-        }
-      });
-      localStorage.setItem("mta-selected-stops", JSON.stringify(updated));
-      return updated;
-    });
-    setHiddenStops([]);
-    localStorage.setItem("mta-hidden-stops", "[]");
-  };
 
   const sortedStops = useMemo(() => {
     const fav = stops.filter((s) => isFav(s));
@@ -2155,8 +2134,7 @@ export default function App() {
       const stopsData = await stopsRes.json();
       const vehiclesData = await vehiclesRes.json();
       setAlerts(alertsData.alerts || []);
-      const allStops = (stopsData.stops || []).filter((s) => !hiddenStops.includes(`${s.stopId}-${s.route}`));
-      setStops(allStops);
+      setStops(stopsData.stops || []);
       setVehicles(vehiclesData.vehicles || []);
       setLastRefresh(new Date());
     } catch (err) {
@@ -2164,7 +2142,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [trackedRoutes, hiddenStops, selectedStops]);
+  }, [trackedRoutes, selectedStops]);
 
   const fetchPolylinesAndStops = useCallback(async () => {
     try {
@@ -2393,11 +2371,6 @@ export default function App() {
         <div className={`panel ${mobileSheet === "arrivals" ? "mobile-visible" : ""}`}>
           <div className="section-title">
             Live Arrivals {favorites.length > 0 && <span className="count">({favorites.length} starred)</span>}
-            {hiddenStops.length > 0 && (
-              <button className="restore-hidden-btn" onClick={restoreHiddenStops}>
-                ↺ Restore {hiddenStops.length} hidden stop{hiddenStops.length !== 1 ? "s" : ""}
-              </button>
-            )}
           </div>
           <div className="arrivals-grid">
             {sortedStops.map((s) => (
