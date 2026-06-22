@@ -56,9 +56,12 @@ export default async function handler(req, res) {
     const userStops = {};
     if (stopsParam) {
       stopsParam.split("|").forEach(part => {
-        const [route, ids] = part.split(":");
-        if (route && ids) {
-          userStops[route.toUpperCase()] = ids.split(",").map(id => id.trim()).filter(Boolean);
+        const colonIdx = part.indexOf(":");
+        if (colonIdx === -1) return;
+        const route = part.substring(0, colonIdx).trim().toUpperCase();
+        const idsStr = part.substring(colonIdx + 1).trim();
+        if (route) {
+          userStops[route] = idsStr ? idsStr.split(",").map(id => id.trim()).filter(Boolean) : [];
         }
       });
     }
