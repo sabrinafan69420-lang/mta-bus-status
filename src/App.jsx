@@ -2140,7 +2140,7 @@ export default function App() {
       const routesQuery = trackedRoutes.join(",");
       const stopsQuery = trackedRoutes.map(route => {
         const routeSelected = selectedStops[route];
-        if (routeSelected && routeSelected.length > 0) {
+        if (routeSelected) {
           return `${route}:${routeSelected.join(",")}`;
         }
         return null;

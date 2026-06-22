@@ -69,10 +69,11 @@ export default async function handler(req, res) {
     if (extraRoutes.length > 0) {
       const stopLists = await Promise.all(extraRoutes.map(async (route) => {
         const userStopIds = userStops[route];
-        if (userStopIds && userStopIds.length > 0) {
+        if (userStopIds !== undefined) {
+          if (userStopIds.length === 0) return { route, stops: [] };
           const allStops = await getStopsForRoute(route);
           const selected = userStopIds.map(id => allStops.find(s => s.stopId === id)).filter(Boolean);
-          if (selected.length > 0) return { route, stops: selected };
+          return { route, stops: selected };
         }
         const stops = await getStopsForRoute(route);
         return { route, stops: stops.slice(0, 3) };
