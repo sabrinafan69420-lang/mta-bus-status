@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo, Component } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import "./index.css";
@@ -22,6 +22,11 @@ const MTA_ROUTES = [
   "X1","X2","X3","X4","X5","X6","X7","X8","X9","X10","X10A","X11","X12","X14","X15","X17","X18","X19","X20","X21","X22","X22A","X22B","X27","X28","X30","X31","X32","X36","X37","X38","X39","X40","X42","X43","X44","X45","X46","X48","X49","X51","X52","X54","X55","X57","X60","X63","X64","X68","X80",
   "Bx1","Bx2","Bx3","Bx4","Bx4A","Bx5","Bx6","Bx6A","Bx7","Bx8","Bx9","Bx10","Bx11","Bx12","Bx12-SBS","Bx14","Bx15","Bx15-SBS","Bx16","Bx17","Bx18","Bx19","Bx20","Bx21","Bx22","Bx23","Bx24","Bx25","Bx26","Bx27","Bx28","Bx29","Bx30","Bx31","Bx32","Bx33","Bx34","Bx35","Bx36","Bx38","Bx39","Bx40","Bx41","Bx42","Bx43","Bx46","Bx48","Bx55","BxM1","BxM2","BxM3","BxM4","BxM6","BxM7","BxM8","BxM9","BxM10","BxM11","BxM12","BxM14","BxM15","BxM16","BxM17","BxM18","BxM20","BxM21","BxM22","BxM23","BxM24","BxM25","BxM26","BxM27","BxM28","BxM34","BxM35","BxM36","BxM38","BxM40","BxM41","BxM42","BxM43","BxM44","BxM46","BxM48","BxM49"
 ];
+
+function escHtml(s) {
+  if (!s) return "";
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
 
 function getRouteColor(route, index) {
   if (DEFAULT_COLORS[route]) return DEFAULT_COLORS[route];
@@ -191,7 +196,7 @@ function StopCard({ stop, isFavorite, onToggleFavorite, onRemoveStop, onEditStop
   );
 }
 
-function DepartureBoard({ stops, routeColors, trackedRoutes, activeRoute }) {
+function DepartureBoard({ stops, routeColors, activeRoute }) {
   const allArrivals = useMemo(() => {
     const list = [];
     stops.forEach((stop) => {
@@ -326,7 +331,7 @@ function ServiceCalendar({ alerts }) {
   );
 }
 
-function busPopupHtml(v, color, routeColors) {
+function busPopupHtml(v, color) {
   const progressLabel = {
     "in progress": "Moving", normalProgress: "Moving", delayed: "Delayed",
     "stopped at stop": "At Stop", "stopped at connection": "At Connection",
@@ -349,8 +354,8 @@ function busPopupHtml(v, color, routeColors) {
       ${stops.map((s, i) => `
         <div class="bus-popup-stop ${i === 0 ? "next" : ""}">
           <span class="bus-popup-stop-num">${i + 1}</span>
-          <span class="bus-popup-stop-name">${s.name}</span>
-          <span class="bus-popup-stop-dist">${s.distance || (s.stopsAway != null ? s.stopsAway + " stops" : (s.metersAway != null ? Math.round(s.metersAway) + "m" : "\u2014"))}</span>
+          <span class="bus-popup-stop-name">${escHtml(s.name)}</span>
+          <span class="bus-popup-stop-dist">${escHtml(s.distance) || (s.stopsAway != null ? s.stopsAway + " stops" : (s.metersAway != null ? Math.round(s.metersAway) + "m" : "\u2014"))}</span>
         </div>
       `).join("")}
     </div>` : "";
@@ -358,17 +363,17 @@ function busPopupHtml(v, color, routeColors) {
 
   return `<div class="bus-popup-card">
     <div class="bus-popup-header" style="background:${color}">
-      <span class="bus-popup-route">${v.route}</span>
-      <span class="bus-popup-vehicle">#${v.id}</span>
+      <span class="bus-popup-route">${escHtml(v.route)}</span>
+      <span class="bus-popup-vehicle">#${escHtml(v.id)}</span>
       ${delayBadge}
     </div>
     <div class="bus-popup-body">
-      <div class="bus-popup-row"><span class="bus-popup-label">Direction</span><span>${v.direction}</span></div>
-      <div class="bus-popup-row"><span class="bus-popup-label">Destination</span><span>${v.destination || "\u2014"}</span></div>
+      <div class="bus-popup-row"><span class="bus-popup-label">Direction</span><span>${escHtml(v.direction)}</span></div>
+      <div class="bus-popup-row"><span class="bus-popup-label">Destination</span><span>${escHtml(v.destination) || "\u2014"}</span></div>
       ${v.speed != null ? `<div class="bus-popup-row"><span class="bus-popup-label">Speed</span><span>${Math.round(v.speed)} mph</span></div>` : ""}
-      ${status ? `<div class="bus-popup-row"><span class="bus-popup-label">Status</span><span class="${statusClass}">${status}</span></div>` : ""}
-      ${pStatus ? `<div class="bus-popup-row bus-popup-note"><span>${pStatus}</span></div>` : ""}
-      ${occupancy ? `<div class="bus-popup-row"><span class="bus-popup-label">Crowding</span><span>${occupancy}</span></div>` : ""}
+      ${status ? `<div class="bus-popup-row"><span class="bus-popup-label">Status</span><span class="${statusClass}">${escHtml(status)}</span></div>` : ""}
+      ${pStatus ? `<div class="bus-popup-row bus-popup-note"><span>${escHtml(pStatus)}</span></div>` : ""}
+      ${occupancy ? `<div class="bus-popup-row"><span class="bus-popup-label">Crowding</span><span>${escHtml(occupancy)}</span></div>` : ""}
       ${stopsHtml}
     </div>
   </div>`;
@@ -799,10 +804,9 @@ function PastDepartures({ departures }) {
 }
 
 // === Feature: System Stats ===
-function SystemStats({ vehicles, stops, alerts, trackedRoutes }) {
+function SystemStats({ vehicles, stops, alerts }) {
   const totalBuses = vehicles.length;
   const totalStops = (Array.isArray(stops) ? stops : []).length;
-  const totalArrivals = (Array.isArray(stops) ? stops : []).reduce((sum, s) => sum + (s?.arrivals?.length || 0), 0);
   const delayedBuses = vehicles.filter(v => v.progressRate === "delayed").length;
   const avgSpeed = vehicles.filter(v => v.speed > 0).reduce((sum, v) => sum + v.speed, 0) / (vehicles.filter(v => v.speed > 0).length || 1);
   const fullBuses = vehicles.filter(v => v.occupancy === "full").length;
@@ -855,8 +859,6 @@ function MyCommute({ trackedRoutes, routeColors }) {
   const [editMode, setEditMode] = useState(!commute);
   const [origin, setOrigin] = useState(commute?.origin || "");
   const [dest, setDest] = useState(commute?.dest || "");
-  const [originCoords, setOriginCoords] = useState(commute?.originCoords || null);
-  const [destCoords, setDestCoords] = useState(commute?.destCoords || null);
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -876,8 +878,6 @@ function MyCommute({ trackedRoutes, routeColors }) {
       setCommute(c);
       setOrigin(o.text);
       setDest(d.text);
-      setOriginCoords(o.coords);
-      setDestCoords(d.coords);
       localStorage.setItem(COMMUTE_KEY, JSON.stringify(c));
       setEditMode(false);
     }
@@ -889,7 +889,7 @@ function MyCommute({ trackedRoutes, routeColors }) {
     setLoading(true);
     try {
       const [tripRes, walkRes] = await Promise.all([
-        fetch(`/api/trip?origin=${commute.originCoords[1]},${commute.originCoords[0]}&dest=${commute.destCoords[1]},${commute.destCoords[0]}`),
+        fetch(`/api/trip?originLat=${commute.originCoords[1]}&originLng=${commute.originCoords[0]}&destLat=${commute.destCoords[1]}&destLng=${commute.destCoords[0]}&routes=${encodeURIComponent(trackedRoutes.join(","))}`),
         fetch(`https://api.mapbox.com/directions/v5/mapbox/walking/${commute.originCoords[0]},${commute.originCoords[1]};${commute.destCoords[0]},${commute.destCoords[1]}?access_token=${mapboxgl.accessToken}&geometries=geojson`),
       ]);
       const tripData = await tripRes.json();
@@ -957,19 +957,6 @@ function MyCommute({ trackedRoutes, routeColors }) {
       )}
     </div>
   );
-}
-
-// === Feature: Crowding Badge ===
-function CrowdingBadge({ occupancy }) {
-  if (!occupancy) return null;
-  const map = {
-    seatsAvailable: { icon: "💺", text: "Seats", cls: "crowd-seats" },
-    standingAvailable: { icon: "🧍", text: "Standing", cls: "crowd-standing" },
-    full: { icon: " packed", text: "Full", cls: "crowd-full" },
-    crushedStandingOnly: { icon: " crushed", text: "Crushed", cls: "crowd-full" },
-  };
-  const info = map[occupancy] || { icon: "?", text: occupancy, cls: "crowd-unknown" };
-  return <span className={`crowding-badge ${info.cls}`}>{info.icon} {info.text}</span>;
 }
 
 // === Feature: Reliability Score ===
@@ -1305,7 +1292,7 @@ function StopPicker({ route, stops, selected, onConfirm, onCancel, routeColor })
 }
 
 // --- Map Component ---
-function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRoutes, routeColors, heatmapEnabled, onMapMove }) {
+function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, routeColors, heatmapEnabled, onMapMove }) {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef({});
@@ -1454,7 +1441,7 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
           if (popupRef.current) popupRef.current.remove();
           const popup = new mapboxgl.Popup({ offset: 10, maxWidth: "280px", className: "stop-click-popup" })
             .setLngLat([stop.lon, stop.lat])
-            .setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${route}</span><div class="stop-arrivals-loading"><div class="spinner-sm"></div>Loading arrivals...</div></div>`)
+            .setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(route)}</span><div class="stop-arrivals-loading"><div class="spinner-sm"></div>Loading arrivals...</div></div>`)
             .addTo(map);
           popupRef.current = popup;
           fetch(`/api/arrivals/${stop.id}?route=${route}`)
@@ -1483,17 +1470,17 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
                     const dc = delayColor(a.delay);
                     return `<div class="stop-arrival-row">
                       <span class="stop-arrival-mins ${mc}">${ml}${a.minutes > 0 ? '<span class="stop-arrival-unit">min</span>' : ''}</span>
-                      <span class="stop-arrival-dest">${a.destination}</span>
-                      <span class="stop-arrival-dir">${a.direction}</span>
+                      <span class="stop-arrival-dest">${escHtml(a.destination)}</span>
+                      <span class="stop-arrival-dir">${escHtml(a.direction)}</span>
                       ${a.stopsAway != null ? `<span class="stop-arrival-stops">${a.stopsAway} stops</span>` : ''}
                       ${dc ? `<span class="stop-arrival-delay" style="color:${dc}">+${Math.round((a.delay||0) / 60)}m</span>` : ''}
                     </div>`;
                   }).join("");
-              popup.setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${route}</span><div class="stop-arrivals">${arrivalsHtml}</div><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},'${stop.name.replace(/'/g, "\\'")}')">Directions</button></div>`);
+              popup.setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(route)}</span><div class="stop-arrivals">${arrivalsHtml}</div><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},'${escHtml(stop.name).replace(/'/g, "\\'")}')">Directions</button></div>`);
             })
             .catch(() => {
               if (!popup.isOpen()) return;
-              popup.setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${route}</span><div class="stop-arrivals"><div class="stop-no-arrivals">Failed to load arrivals</div></div></div>`);
+              popup.setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(route)}</span><div class="stop-arrivals"><div class="stop-no-arrivals">Failed to load arrivals</div></div></div>`);
             });
         });
         const marker = new mapboxgl.Marker(el).setLngLat([stop.lon, stop.lat]).addTo(map);
@@ -1534,7 +1521,7 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
         if (popupRef.current) popupRef.current.remove();
         const popup = new mapboxgl.Popup({ offset: 16, className: "bus-popup" })
           .setLngLat([v.lon, v.lat])
-          .setHTML(busPopupHtml(v, routeColors[v.route] || "#888", routeColors))
+          .setHTML(busPopupHtml(v, routeColors[v.route] || "#888"))
           .addTo(map);
         popup._busId = v.id;
         popupRef.current = popup;
@@ -1646,7 +1633,7 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
       if (popupRef.current) popupRef.current.remove();
       const popup = new mapboxgl.Popup({ offset: 10, maxWidth: "280px", className: "stop-click-popup" })
         .setLngLat([stop.lon, stop.lat])
-        .setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${stop.route}</span><div class="stop-arrivals-loading"><div class="spinner-sm"></div>Loading arrivals...</div></div>`)
+        .setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(stop.route)}</span><div class="stop-arrivals-loading"><div class="spinner-sm"></div>Loading arrivals...</div></div>`)
         .addTo(map);
       popupRef.current = popup;
       fetch(`/api/arrivals/${stop.id}?route=${stop.route}`)
@@ -1675,17 +1662,17 @@ function BusMap({ vehicles, polylines, stops, alerts, visibleRoutes, trackedRout
                 const dc = delayColor(a.delay);
                 return `<div class="stop-arrival-row">
                   <span class="stop-arrival-mins ${mc}">${ml}${a.minutes > 0 ? '<span class="stop-arrival-unit">min</span>' : ''}</span>
-                  <span class="stop-arrival-dest">${a.destination}</span>
-                  <span class="stop-arrival-dir">${a.direction}</span>
+                  <span class="stop-arrival-dest">${escHtml(a.destination)}</span>
+                  <span class="stop-arrival-dir">${escHtml(a.direction)}</span>
                   ${a.stopsAway != null ? `<span class="stop-arrival-stops">${a.stopsAway} stops</span>` : ''}
                   ${dc ? `<span class="stop-arrival-delay" style="color:${dc}">+${Math.round((a.delay||0) / 60)}m</span>` : ''}
                 </div>`;
               }).join("");
-          popup.setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${stop.route}</span><div class="stop-arrivals">${arrivalsHtml}</div><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},'${stop.name.replace(/'/g, "\\'")}')">Directions</button></div>`);
+          popup.setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(stop.route)}</span><div class="stop-arrivals">${arrivalsHtml}</div><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},'${escHtml(stop.name).replace(/'/g, "\\'")}')">Directions</button></div>`);
         })
         .catch(() => {
           if (!popup.isOpen()) return;
-          popup.setHTML(`<div class="stop-popup"><b>${stop.name}</b><br/><span class="stop-popup-id">${stop.id}</span> <span class="stop-popup-route">${stop.route}</span><div class="stop-arrivals"><div class="stop-no-arrivals">Failed to load arrivals</div></div></div>`);
+          popup.setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(stop.route)}</span><div class="stop-arrivals"><div class="stop-no-arrivals">Failed to load arrivals</div></div></div>`);
         });
     }, 1200);
   }, []);
@@ -1745,7 +1732,6 @@ export default function App() {
   const [favoriteRoutes, setFavoriteRoutes] = useState(() => {
     try { return JSON.parse(localStorage.getItem("mta-favorite-routes") || "[]"); } catch { return []; }
   });
-  const [activePanel, setActivePanel] = useState("arrivals");
   const [mapState, setMapState] = useState({ lat: 40.65, lng: -73.94, zoom: 12.5 });
   const [copied, setCopied] = useState(false);
   const searchRef = useRef(null);
@@ -2229,7 +2215,7 @@ export default function App() {
       </div>
 
       {/* Feature 10: System Stats */}
-      <SystemStats vehicles={vehicles} stops={stops} alerts={alerts} trackedRoutes={trackedRoutes} />
+      <SystemStats vehicles={vehicles} stops={stops} alerts={alerts} />
 
       {/* Map */}
       <div className="map-section">
@@ -2286,7 +2272,6 @@ export default function App() {
           vehicles={vehicles}
           polylines={polylines}
           stops={routeStops}
-          alerts={alerts}
           visibleRoutes={visibleRoutes}
           trackedRoutes={trackedRoutes}
           routeColors={routeColors}
@@ -2383,7 +2368,7 @@ export default function App() {
 
         <div className={`panel ${mobileSheet === "departure" ? "mobile-visible" : ""}`}>
           <div className="section-title">Departure Board</div>
-          <DepartureBoard stops={stops} routeColors={routeColors} trackedRoutes={trackedRoutes} activeRoute={activeRoute} />
+          <DepartureBoard stops={stops} routeColors={routeColors} activeRoute={activeRoute} />
         </div>
 
         <div className={`panel ${mobileSheet === "alerts" ? "mobile-visible" : ""}`}>

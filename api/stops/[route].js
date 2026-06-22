@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     const url = `${SIRI_BASE}/where/stops-for-route/${encodeURIComponent(oneBusAwayId(route))}.json?key=${API_KEY}&includePolylines=false&version=2`;
     const data = await fetchJSON(url, 10000);
     const rawStops = data?.data?.references?.stops || [];
-    const stops = rawStops.map((s) => ({ id: s.id?.replace("MTA_", "") || s.code, name: s.name, lat: s.lat, lon: s.lon, direction: s.direction || null, routeIds: s.routeIds || [] }));
+    const stops = rawStops.map((s) => ({ id: (s.id || "").replace("MTA_", "").replace("MTA NYCT_", "").replace("MTABC_", "") || s.code, name: s.name, lat: s.lat, lon: s.lon, direction: s.direction || null, routeIds: s.routeIds || [] }));
     const result = { route, stops };
     cache[route] = { data: result, ts: Date.now() };
     res.json(result);

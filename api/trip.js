@@ -1,8 +1,4 @@
-import { cors, fetchJSON, SIRI_BASE, API_KEY, routeApiId, DEFAULT_ROUTES } from "./lib.js";
-
-function stripRoutePrefix(s) {
-  return s.replace("MTABC_", "").replace("MTA NYCT_", "").replace("MTA_", "");
-}
+import { cors, fetchJSON, SIRI_BASE, API_KEY, DEFAULT_ROUTES } from "./lib.js";
 
 function haversineMeters(lat1, lon1, lat2, lon2) {
   const R = 6371000;

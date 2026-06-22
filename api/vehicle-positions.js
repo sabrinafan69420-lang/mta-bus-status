@@ -1,4 +1,4 @@
-import { DEFAULT_ROUTES, cors, fetchBuffer, protobuf } from "./lib.js";
+import { DEFAULT_ROUTES, cors, fetchBuffer, protobuf, API_KEY } from "./lib.js";
 
 export default async function handler(req, res) {
   cors(res);
@@ -6,7 +6,7 @@ export default async function handler(req, res) {
     const routesParam = req.query.routes;
     const routes = routesParam ? routesParam.split(",").map(r => r.toUpperCase().trim()).filter(Boolean) : DEFAULT_ROUTES;
 
-    const buffer = await fetchBuffer(`https://gtfsrt.prod.obanyc.com/vehiclePositions?key=${process.env.MTA_BUSTIME_KEY}`);
+    const buffer = await fetchBuffer(`https://gtfsrt.prod.obanyc.com/vehiclePositions?key=${API_KEY}`);
     const feed = protobuf.transit_realtime.FeedMessage.decode(buffer);
     const now = Math.floor(Date.now() / 1000);
     const vehicles = [];

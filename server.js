@@ -2,7 +2,6 @@ import express from "express";
 import fetch from "node-fetch";
 import protobuf from "gtfs-realtime-bindings";
 import polyline from "@mapbox/polyline";
-import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
@@ -206,13 +205,27 @@ async function fetchJSON(url, timeoutMs = 10000) {
 // --- SIRI Proxy ---
 async function fetchArrivals(stopId, lineRef) {
   let url = `${SIRI_BASE}/siri/stop-monitoring.json?key=${API_KEY}&version=2&OperatorRef=MTA&MonitoringRef=${stopId}&StopMonitoringDetailLevel=calls`;
-  if (lineRef) url += `&LineRef=MTA%20NYCT_${lineRef}`;
+  if (lineRef) {
+    const r = lineRef.toUpperCase();
+    let apiId;
+    if (r.startsWith("BM") || r.startsWith("BX")) apiId = `MTABC_${r}`;
+    else if (r.endsWith("-SBS")) apiId = `MTA NYCT_${r.replace(/-SBS$/, "")}+`;
+    else apiId = `MTA NYCT_${r}`;
+    url += `&LineRef=${encodeURIComponent(apiId)}`;
+  }
   return fetchJSON(url, 12000);
 }
 
 async function fetchVehicleMonitoring(lineRef) {
   let url = `${SIRI_BASE}/siri/vehicle-monitoring.json?key=${API_KEY}&version=2&OperatorRef=MTA&VehicleMonitoringDetailLevel=calls&MaximumNumberOfCallsOnwards=5`;
-  if (lineRef) url += `&LineRef=MTA%20NYCT_${lineRef}`;
+  if (lineRef) {
+    const r = lineRef.toUpperCase();
+    let apiId;
+    if (r.startsWith("BM") || r.startsWith("BX")) apiId = `MTABC_${r}`;
+    else if (r.endsWith("-SBS")) apiId = `MTA NYCT_${r.replace(/-SBS$/, "")}+`;
+    else apiId = `MTA NYCT_${r}`;
+    url += `&LineRef=${encodeURIComponent(apiId)}`;
+  }
   return fetchJSON(url, 15000);
 }
 
@@ -389,7 +402,12 @@ app.get("/api/polylines/:route", async (req, res) => {
       return res.json(polylineCache[cacheKey].data);
     }
 
-    const url = `${SIRI_BASE}/where/stops-for-route/MTA%20NYCT_${route}.json?key=${API_KEY}&includePolylines=true&version=2`;
+    const r = route.toUpperCase();
+    let apiId;
+    if (r.startsWith("BM") || r.startsWith("BX")) apiId = `MTABC_${r}`;
+    else if (r.endsWith("-SBS")) apiId = `MTA NYCT_${r.replace(/-SBS$/, "")}+`;
+    else apiId = `MTA NYCT_${r}`;
+    const url = `${SIRI_BASE}/where/stops-for-route/${encodeURIComponent(apiId)}.json?key=${API_KEY}&includePolylines=true&version=2`;
     const data = await fetchJSON(url, 10000);
     const entry = data?.data?.entry;
     const rawPolylines = entry?.polylines || [];
@@ -397,15 +415,14 @@ app.get("/api/polylines/:route", async (req, res) => {
     const decoded = rawPolylines
       .map((p) => {
         try {
-          return polyline.decode(p.points);
+          return polyline.decode(p.points).map(([lat, lng]) => [lng, lat]);
         } catch {
           return null;
         }
       })
-      .filter(Boolean)
-      .flat();
+      .filter(Boolean);
 
-    const result = { route, coordinates: decoded };
+    const result = { route, segments: decoded };
     polylineCache[cacheKey] = { data: result, ts: Date.now() };
     res.json(result);
   } catch (err) {
@@ -423,7 +440,12 @@ app.get("/api/stops/:route", async (req, res) => {
       return res.json(stopsCache[cacheKey].data);
     }
 
-    const url = `${SIRI_BASE}/where/stops-for-route/MTA%20NYCT_${route}.json?key=${API_KEY}&includePolylines=false&version=2`;
+    const r = route.toUpperCase();
+    let apiId;
+    if (r.startsWith("BM") || r.startsWith("BX")) apiId = `MTABC_${r}`;
+    else if (r.endsWith("-SBS")) apiId = `MTA NYCT_${r.replace(/-SBS$/, "")}+`;
+    else apiId = `MTA NYCT_${r}`;
+    const url = `${SIRI_BASE}/where/stops-for-route/${encodeURIComponent(apiId)}.json?key=${API_KEY}&includePolylines=false&version=2`;
     const data = await fetchJSON(url, 10000);
     const refs = data?.data?.references;
     const rawStops = refs?.stops || [];
