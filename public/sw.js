@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mta-bus-v1';
+const CACHE_NAME = 'mta-bus-v2';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -24,6 +24,14 @@ self.addEventListener('fetch', (event) => {
   if (request.url.includes('/api/')) {
     event.respondWith(
       fetch(request).catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Navigation requests: network-first, fallback to cached index.html
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/'))
     );
     return;
   }

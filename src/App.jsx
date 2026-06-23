@@ -146,17 +146,18 @@ function AlertCard({ alert }) {
 function ArrivalRow({ arrival }) {
   const dc = delayColor(arrival.delay);
   const [countdown, setCountdown] = useState(arrival.minutes);
+  const intervalRef = useRef(null);
 
   useEffect(() => {
     if (arrival.minutes == null || arrival.minutes <= 0) return;
     setCountdown(arrival.minutes);
-    const interval = setInterval(() => {
+    intervalRef.current = setInterval(() => {
       setCountdown(prev => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
+        if (prev <= 1) return 0;
         return prev - 1;
       });
     }, 60000);
-    return () => clearInterval(interval);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [arrival.minutes, arrival.route, arrival.destination]);
 
   const displayMins = countdown ?? arrival.minutes;
@@ -1587,7 +1588,7 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
                       ${dc ? `<span class="stop-arrival-delay" style="color:${dc}">+${Math.round((a.delay||0) / 60)}m</span>` : ''}
                     </div>`;
                   }).join("");
-              popup.setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(route)}</span><div class="stop-arrivals">${arrivalsHtml}</div><div style="display:flex;gap:6px;margin-top:8px"><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},'${escHtml(stop.name).replace(/'/g, "\\'")}')">Directions</button><button class="stop-directions-btn" onclick="window.__quickAddStop&&window.__quickAddStop('${escHtml(stop.id).replace(/'/g, "\\'")}','${escHtml(stop.name).replace(/'/g, "\\'")}','${escHtml(route).replace(/'/g, "\\'")}',this)">+ Track</button></div></div>`);
+              popup.setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(route)}</span><div class="stop-arrivals">${arrivalsHtml}</div><div style="display:flex;gap:6px;margin-top:8px"><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},${JSON.stringify(escHtml(stop.name))})">Directions</button><button class="stop-directions-btn" onclick="window.__quickAddStop&&window.__quickAddStop(${JSON.stringify(escHtml(stop.id))},${JSON.stringify(escHtml(stop.name))},${JSON.stringify(escHtml(route))},this)">+ Track</button></div></div>`);
             })
             .catch(() => {
               if (!popup.isOpen()) return;
@@ -1719,6 +1720,7 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
         }
         if (btn) { btn.textContent = "Added!"; btn.disabled = true; }
         setTimeout(() => { if (btn) { btn.textContent = "+ Track"; btn.disabled = false; } }, 2000);
+        window.dispatchEvent(new CustomEvent("mta-stops-changed"));
       } catch {}
     };
     return () => { delete window.__walkToStop; delete window.__clearWalking; delete window.__quickAddStop; };
@@ -1796,7 +1798,7 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
                   ${dc ? `<span class="stop-arrival-delay" style="color:${dc}">+${Math.round((a.delay||0) / 60)}m</span>` : ''}
                 </div>`;
               }).join("");
-          popup.setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(stop.route)}</span><div class="stop-arrivals">${arrivalsHtml}</div><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},'${escHtml(stop.name).replace(/'/g, "\\'")}')">Directions</button></div>`);
+          popup.setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(stop.route)}</span><div class="stop-arrivals">${arrivalsHtml}</div><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},${JSON.stringify(escHtml(stop.name))})">Directions</button></div>`);
         })
         .catch(() => {
           if (!popup.isOpen()) return;
@@ -1881,6 +1883,16 @@ export default function App() {
   const [soundEnabled, setSoundEnabled] = useState(() => {
     try { return localStorage.getItem(SOUND_KEY) === "true"; } catch { return false; }
   });
+
+  // Sync favorites/selectedStops when quickAddStop fires from map
+  useEffect(() => {
+    const sync = () => {
+      try { setFavorites(JSON.parse(localStorage.getItem("mta-favorites") || "[]")); } catch {}
+      try { setSelectedStops(JSON.parse(localStorage.getItem("mta-selected-stops") || "{}")); } catch {}
+    };
+    window.addEventListener("mta-stops-changed", sync);
+    return () => window.removeEventListener("mta-stops-changed", sync);
+  }, []);
 
   // Feature 6: Saved views (managed by SavedViews component)
 
