@@ -1485,21 +1485,25 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    removeLayerSafe(map, "bus-heatmap", "bus-heatmap-source");
-    if (!heatmapEnabled) return;
+    if (!heatmapEnabled) {
+      removeLayerSafe(map, "bus-heatmap", "bus-heatmap-source");
+      return;
+    }
     const visible = vehicles.filter((v) => v.lat && v.lon && visibleRoutes.includes(v.route));
-    if (visible.length === 0) return;
-    map.addSource("bus-heatmap-source", {
-      type: "geojson",
-      data: {
-        type: "FeatureCollection",
-        features: visible.map((v) => ({
-          type: "Feature",
-          properties: {},
-          geometry: { type: "Point", coordinates: [v.lon, v.lat] },
-        })),
-      },
-    });
+    const geojsonData = {
+      type: "FeatureCollection",
+      features: visible.map((v) => ({
+        type: "Feature",
+        properties: {},
+        geometry: { type: "Point", coordinates: [v.lon, v.lat] },
+      })),
+    };
+    const existingSource = map.getSource("bus-heatmap-source");
+    if (existingSource) {
+      existingSource.setData(geojsonData);
+      return;
+    }
+    map.addSource("bus-heatmap-source", { type: "geojson", data: geojsonData });
     map.addLayer({
       id: "bus-heatmap",
       type: "heatmap",
