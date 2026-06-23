@@ -1689,7 +1689,7 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
               if (popupRef.current) popupRef.current.remove();
               const popup = new mapboxgl.Popup({ offset: 10, maxWidth: "260px" })
                 .setLngLat(end)
-                .setHTML(`<div class="walking-popup"><div class="walking-popup-title">Walking to ${name}</div><div class="walking-popup-info"><span>${dist} mi</span><span>~${mins} min</span></div><button class="walking-clear-btn" onclick="window.__clearWalking&&window.__clearWalking()">Clear</button></div>`)
+                .setHTML(`<div class="walking-popup"><div class="walking-popup-title">Walking to ${escHtml(name)}</div><div class="walking-popup-info"><span>${dist} mi</span><span>~${mins} min</span></div><button class="walking-clear-btn" onclick="window.__clearWalking&&window.__clearWalking()">Clear</button></div>`)
                 .addTo(map);
               popupRef.current = popup;
             });
@@ -2299,6 +2299,7 @@ export default function App() {
     setVisibleRoutes((prev) => prev.filter((r) => r !== route));
     setPolylines((prev) => { const n = { ...prev }; delete n[route]; return n; });
     setRouteStops((prev) => { const n = { ...prev }; delete n[route]; return n; });
+    setFavorites(prev => prev.filter(f => f.route !== route));
     setSelectedStops(prev => {
       const next = { ...prev }; delete next[route];
       localStorage.setItem("mta-selected-stops", JSON.stringify(next));

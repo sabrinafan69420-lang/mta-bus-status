@@ -34,9 +34,13 @@ if ("serviceWorker" in navigator) {
       reg.addEventListener("updatefound", () => {
         const newWorker = reg.installing;
         if (newWorker) {
+          let reloaded = false;
           newWorker.addEventListener("statechange", () => {
-            if (newWorker.state === "activated") {
-              window.location.reload();
+            if (newWorker.state === "activated" && !reloaded) {
+              reloaded = true;
+              if (document.visibilityState === "visible") {
+                window.location.reload();
+              }
             }
           });
         }

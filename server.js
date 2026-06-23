@@ -26,7 +26,11 @@ const TRACKED_ROUTES = ["B6", "B8", "B15"];
 
 // --- CORS ---
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
+  const origin = req.headers.origin;
+  const allowed = ["https://mta.spis.dev", "http://localhost:5173", "http://localhost:3000"];
+  if (allowed.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
   next();
 });
