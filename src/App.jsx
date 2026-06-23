@@ -1921,7 +1921,7 @@ export default function App() {
     localStorage.setItem("mta-theme", theme);
   }, [theme]);
 
-  // URL state - read on mount
+  // URL state - read on mount (for shared links)
   useEffect(() => {
     try {
       const hash = window.location.hash.slice(1);
@@ -1936,16 +1936,6 @@ export default function App() {
       if (!isNaN(urlZoom)) setMapState((s) => ({ ...s, zoom: urlZoom }));
     } catch {}
   }, []);
-
-  // URL state - write on changes
-  useEffect(() => {
-    const params = new URLSearchParams();
-    params.set("routes", trackedRoutes.join(","));
-    params.set("lat", mapState.lat.toFixed(4));
-    params.set("lng", mapState.lng.toFixed(4));
-    params.set("zoom", mapState.zoom.toFixed(1));
-    window.location.hash = params.toString();
-  }, [trackedRoutes, mapState]);
 
   // Build color map
   const routeColors = useMemo(() => {
@@ -2105,7 +2095,13 @@ export default function App() {
   };
 
   const handleShare = () => {
-    const url = window.location.href;
+    const params = new URLSearchParams();
+    params.set("routes", trackedRoutes.join(","));
+    params.set("lat", mapState.lat.toFixed(4));
+    params.set("lng", mapState.lng.toFixed(4));
+    params.set("zoom", mapState.zoom.toFixed(1));
+    const hash = params.toString();
+    const url = `${window.location.origin}${window.location.pathname}#${hash}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
