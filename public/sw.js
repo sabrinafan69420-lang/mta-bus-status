@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mta-bus-v2';
+const CACHE_NAME = 'mta-bus-v3';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
