@@ -83,11 +83,16 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function busSvg(color, bearing = 0, showDelayRing = false) {
+function busSvg(color, bearing = 0, showDelayRing = false, occupancy = null) {
   const ring = showDelayRing
     ? `<circle cx="19" cy="19" r="17" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 2" opacity="0.8"/>`
     : "";
-  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 38 38"><g transform="rotate(${bearing}, 19, 19)">${ring}<circle cx="19" cy="19" r="16" fill="${color}" opacity="0.25"/><circle cx="19" cy="19" r="12" fill="${color}"/><rect x="10" y="7" width="18" height="24" rx="5" fill="${color}" stroke="white" stroke-width="2"/><rect x="13" y="10" width="12" height="9" rx="2" fill="white" opacity="0.9"/><circle cx="14" cy="25" r="2" fill="white"/><circle cx="24" cy="25" r="2" fill="white"/><polygon points="19,3 17,7 21,7" fill="white" opacity="0.8"/></g></svg>`)}`;
+  const occBadge = occupancy === "full"
+    ? `<circle cx="32" cy="6" r="5" fill="#ef4444"/><text x="32" y="8.5" text-anchor="middle" font-size="7" fill="white" font-weight="bold">F</text>`
+    : occupancy === "standingAvailable"
+    ? `<circle cx="32" cy="6" r="5" fill="#f59e0b"/><text x="32" y="8.5" text-anchor="middle" font-size="7" fill="white" font-weight="bold">S</text>`
+    : "";
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="38" height="38" viewBox="0 0 38 38"><g transform="rotate(${bearing}, 19, 19)">${ring}<circle cx="19" cy="19" r="16" fill="${color}" opacity="0.25"/><circle cx="19" cy="19" r="12" fill="${color}"/><rect x="10" y="7" width="18" height="24" rx="5" fill="${color}" stroke="white" stroke-width="2"/><rect x="13" y="10" width="12" height="9" rx="2" fill="white" opacity="0.9"/><circle cx="14" cy="25" r="2" fill="white"/><circle cx="24" cy="25" r="2" fill="white"/><polygon points="19,3 17,7 21,7" fill="white" opacity="0.8"/></g>${occBadge}</svg>`)}`;
 }
 
 function AlertsList({ alerts }) {
@@ -140,6 +145,22 @@ function AlertCard({ alert }) {
 
 function ArrivalRow({ arrival }) {
   const dc = delayColor(arrival.delay);
+  const [countdown, setCountdown] = useState(arrival.minutes);
+
+  useEffect(() => {
+    if (arrival.minutes == null || arrival.minutes <= 0) return;
+    setCountdown(arrival.minutes);
+    const interval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [arrival.minutes, arrival.route, arrival.destination]);
+
+  const displayMins = countdown ?? arrival.minutes;
+
   return (
     <div className="arrival-row">
       <span className="arrival-route">{arrival.route}</span>
@@ -148,13 +169,13 @@ function ArrivalRow({ arrival }) {
         <div className="arrival-direction">{arrival.direction}</div>
       </div>
       <div className="arrival-time">
-        {arrival.minutes != null ? (
+        {displayMins != null ? (
           <>
-            <div className={`arrival-mins ${minsClass(arrival.minutes)}`}>
-              {arrival.minutes === 0 ? "Now" : arrival.minutes}
+            <div className={`arrival-mins ${minsClass(displayMins)}`}>
+              {displayMins === 0 ? "Now" : displayMins}
             </div>
             <div className="arrival-mins-label">
-              {arrival.minutes === 0 ? "" : "min"}
+              {displayMins === 0 ? "" : "min"}
             </div>
           </>
         ) : (
@@ -1566,7 +1587,7 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
                       ${dc ? `<span class="stop-arrival-delay" style="color:${dc}">+${Math.round((a.delay||0) / 60)}m</span>` : ''}
                     </div>`;
                   }).join("");
-              popup.setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(route)}</span><div class="stop-arrivals">${arrivalsHtml}</div><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},'${escHtml(stop.name).replace(/'/g, "\\'")}')">Directions</button></div>`);
+              popup.setHTML(`<div class="stop-popup"><b>${escHtml(stop.name)}</b><br/><span class="stop-popup-id">${escHtml(stop.id)}</span> <span class="stop-popup-route">${escHtml(route)}</span><div class="stop-arrivals">${arrivalsHtml}</div><div style="display:flex;gap:6px;margin-top:8px"><button class="stop-directions-btn" onclick="window.__walkToStop&&window.__walkToStop(${stop.lat},${stop.lon},'${escHtml(stop.name).replace(/'/g, "\\'")}')">Directions</button><button class="stop-directions-btn" onclick="window.__quickAddStop&&window.__quickAddStop('${escHtml(stop.id).replace(/'/g, "\\'")}','${escHtml(stop.name).replace(/'/g, "\\'")}','${escHtml(route).replace(/'/g, "\\'")}',this)">+ Track</button></div></div>`);
             })
             .catch(() => {
               if (!popup.isOpen()) return;
@@ -1593,7 +1614,7 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
         const marker = markersRef.current[key];
         marker.setLngLat([v.lon, v.lat], { duration: 1400 });
         const el = marker.getElement();
-        const newBg = `url("${busSvg(color, v.bearing, isDelayed)}")`;
+        const newBg = `url("${busSvg(color, v.bearing, isDelayed, v.occupancy)}")`;
         if (el.style.backgroundImage !== newBg) el.style.backgroundImage = newBg;
         if (popupRef.current && popupRef.current._busId === v.id) popupRef.current.setLngLat([v.lon, v.lat]);
         return;
@@ -1601,7 +1622,7 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
       const el = document.createElement("div");
       el.className = "bus-marker";
       el.style.cssText = "width:38px;height:38px;cursor:pointer;transition:filter 0.2s;transform-origin:center center;";
-      el.style.backgroundImage = `url("${busSvg(color, v.bearing, isDelayed)}")`;
+      el.style.backgroundImage = `url("${busSvg(color, v.bearing, isDelayed, v.occupancy)}")`;
       el.style.backgroundSize = "contain";
       el.style.backgroundRepeat = "no-repeat";
       el.addEventListener("mouseenter", () => { el.style.filter = `brightness(1.3) drop-shadow(0 0 6px ${color})`; });
@@ -1683,7 +1704,24 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
       walkingSourceRef.current = null;
       if (popupRef.current) popupRef.current.remove();
     };
-    return () => { delete window.__walkToStop; delete window.__clearWalking; };
+    window.__quickAddStop = (stopId, stopName, route, btn) => {
+      try {
+        const selected = JSON.parse(localStorage.getItem("mta-selected-stops") || "{}");
+        const current = selected[route] || [];
+        if (!current.includes(stopId)) {
+          selected[route] = [...current, stopId];
+          localStorage.setItem("mta-selected-stops", JSON.stringify(selected));
+        }
+        const favorites = JSON.parse(localStorage.getItem("mta-favorites") || "[]");
+        if (!favorites.some(f => f.stopId === stopId && f.route === route)) {
+          favorites.push({ stopId, name: stopName, route });
+          localStorage.setItem("mta-favorites", JSON.stringify(favorites));
+        }
+        if (btn) { btn.textContent = "Added!"; btn.disabled = true; }
+        setTimeout(() => { if (btn) { btn.textContent = "+ Track"; btn.disabled = false; } }, 2000);
+      } catch {}
+    };
+    return () => { delete window.__walkToStop; delete window.__clearWalking; delete window.__quickAddStop; };
   }, []);
 
   const fitAllBuses = useCallback(() => {
@@ -2335,7 +2373,20 @@ export default function App() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const filteredAlerts = activeRoute === "ALL" ? alerts : alerts.filter((a) => a.routes.includes(activeRoute));
+  const [alertCauseFilter, setAlertCauseFilter] = useState("ALL");
+
+  const filteredAlerts = useMemo(() => {
+    let list = activeRoute === "ALL" ? alerts : alerts.filter((a) => a.routes.includes(activeRoute));
+    if (alertCauseFilter !== "ALL") {
+      list = list.filter((a) => a.cause === alertCauseFilter);
+    }
+    return list;
+  }, [alerts, activeRoute, alertCauseFilter]);
+
+  const alertCauses = useMemo(() => {
+    const causes = new Set(alerts.map(a => a.cause).filter(Boolean));
+    return ["ALL", ...causes];
+  }, [alerts]);
 
   // Sort tracked routes: favorites first
   const sortedTrackedRoutes = useMemo(() => {
@@ -2533,6 +2584,15 @@ export default function App() {
 
         <div className={`panel ${mobileSheet === "alerts" ? "mobile-visible" : ""}`}>
           <div className="section-title">Service Alerts <span className="count">({filteredAlerts.length})</span></div>
+          {alertCauses.length > 2 && (
+            <div className="alert-cause-filters">
+              {alertCauses.map(c => (
+                <button key={c} className={`alert-cause-btn ${alertCauseFilter === c ? "active" : ""}`} onClick={() => setAlertCauseFilter(c)}>
+                  {c === "ALL" ? "All" : c.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
+                </button>
+              ))}
+            </div>
+          )}
           {filteredAlerts.length === 0 ? (
             <div className="no-alerts">
               <div className="no-alerts-icon">&#10003;</div>

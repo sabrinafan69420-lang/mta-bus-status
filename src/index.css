@@ -2956,3 +2956,24 @@ body {
 .route-edit { font-size: 11px; color: rgba(255,255,255,0.5); cursor: pointer; padding: 1px 4px; border-radius: 4px; transition: all 0.15s; }
 .route-toggle:hover .route-edit { color: rgba(255,255,255,0.7); }
 .route-edit:hover { color: var(--accent); background: var(--accent-glow); }
+
+/* Alert cause filters */
+.alert-cause-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.alert-cause-btn { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-dim); font-size: 11px; cursor: pointer; transition: all 0.15s; }
+.alert-cause-btn:hover { border-color: var(--accent); color: var(--text); }
+.alert-cause-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+/* Arrival countdown pulse */
+@keyframes arriving-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.arrival-mins.arriving { animation: arriving-pulse 1.5s ease-in-out infinite; color: var(--green); font-weight: 700; }
+.arrival-mins.soon { color: var(--yellow); font-weight: 600; }
+
+/* Quick-add from map */
+.map-quick-add-popup { padding: 8px 12px; }
+.map-quick-add-btn { width: 100%; padding: 8px 12px; border-radius: 8px; border: none; background: var(--accent); color: white; font-size: 13px; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+.map-quick-add-btn:hover { opacity: 0.9; }
+.map-quick-add-btn:disabled { opacity: 0.4; cursor: default; }
+.map-quick-add-added { color: var(--green); font-size: 12px; text-align: center; padding: 4px 0; }
