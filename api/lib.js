@@ -19,7 +19,7 @@ export const DEFAULT_ROUTES = ["B6", "B8", "B15"];
 export function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content, Accept");
+  res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
 }
 
 // Express routes (BM*, BxM*) use MTABC_ prefix, local/SBS use MTA NYCT_

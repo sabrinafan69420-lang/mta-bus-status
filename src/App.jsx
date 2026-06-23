@@ -1011,7 +1011,7 @@ function MyCommute({ trackedRoutes, routeColors }) {
     setLoading(false);
   };
 
-  useEffect(() => { if (commute && !editMode) fetchCommute(); }, [commute, editMode]);
+  useEffect(() => { if (commute && !editMode) fetchCommute(); }, [commute, editMode, trackedRoutes]);
 
   if (editMode) {
     return (
@@ -1966,7 +1966,7 @@ export default function App() {
     if (!soundEnabled) return;
     stops.forEach((stop) => {
       (stop.arrivals || []).forEach((a) => {
-        if (a.minutes === 2) {
+        if (a.minutes != null && a.minutes <= 2 && a.minutes >= 0) {
           const key = `${stop.stopId}-${a.route}-${a.destination}`;
           if (!notifTimersRef.current[key]) {
             notifTimersRef.current[key] = true;
@@ -1996,12 +1996,14 @@ export default function App() {
   }, [stops, soundEnabled]);
 
   // Feature 9: Snapshot departures every 60s
+  const routeColorsRef = useRef(routeColors);
+  useEffect(() => { routeColorsRef.current = routeColors; }, [routeColors]);
   useEffect(() => {
     const interval = setInterval(() => {
       const allArrivals = [];
       stops.forEach(s => (s.arrivals || []).forEach(a => allArrivals.push(a)));
       if (allArrivals.length === 0) return;
-      const snap = { ts: Date.now(), arrivals: allArrivals.slice(0, 20), routeColors: { ...routeColors } };
+      const snap = { ts: Date.now(), arrivals: allArrivals.slice(0, 20), routeColors: { ...routeColorsRef.current } };
       setPastSnapshots(prev => {
         const updated = [snap, ...prev].slice(0, 20);
         localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
@@ -2009,7 +2011,7 @@ export default function App() {
       });
     }, 60000);
     return () => clearInterval(interval);
-  }, [stops, routeColors]);
+  }, [stops]);
 
   const toggleRoute = (route) => {
     setVisibleRoutes((prev) =>
@@ -2179,7 +2181,7 @@ export default function App() {
     if (notifPermission !== "granted") return;
     stops.forEach((stop) => {
       stop.arrivals?.forEach((a) => {
-        if (a.minutes === 2) {
+        if (a.minutes != null && a.minutes <= 2 && a.minutes >= 0) {
           const key = `${stop.stopId}-${a.route}-${a.destination}`;
           if (!notifTimersRef.current[key]) {
             notifTimersRef.current[key] = true;

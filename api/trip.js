@@ -1,4 +1,4 @@
-import { cors, fetchJSON, SIRI_BASE, API_KEY, DEFAULT_ROUTES } from "./lib.js";
+import { cors, fetchJSON, SIRI_BASE, API_KEY, DEFAULT_ROUTES, routeApiId } from "./lib.js";
 
 function haversineMeters(lat1, lon1, lat2, lon2) {
   const R = 6371000;
@@ -10,7 +10,7 @@ function haversineMeters(lat1, lon1, lat2, lon2) {
 
 async function fetchStopsForRoute(route) {
   try {
-    const url = `${SIRI_BASE}/where/stops-for-route/${encodeURIComponent(route)}.json?key=${API_KEY}&includePolylines=false&version=2`;
+    const url = `${SIRI_BASE}/where/stops-for-route/${encodeURIComponent(routeApiId(route))}.json?key=${API_KEY}&includePolylines=false&version=2`;
     const data = await fetchJSON(url, 10000);
     return (data?.data?.references?.stops || []).map(s => ({
       id: (s.id || "").replace("MTA_", "").replace("MTA NYCT_", "").replace("MTABC_", ""),
