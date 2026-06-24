@@ -1412,7 +1412,7 @@ function StopPicker({ route, stops, selected, onConfirm, onCancel, routeColor })
 }
 
 // --- Map Component ---
-function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, routeColors, heatmapEnabled, onMapMove }) {
+function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, routeColors, heatmapEnabled, onMapMove, mapState }) {
   const mapContainer = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef({});
@@ -1428,8 +1428,8 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
       const map = new mapboxgl.Map({
         container: mapContainer.current,
         style: "mapbox://styles/mapbox/dark-v11",
-        center: [-73.94, 40.65],
-        zoom: 12.5,
+        center: [mapState.lng || -73.94, mapState.lat || 40.65],
+        zoom: mapState.zoom || 12.5,
         pitch: 0,
         attributionControl: false,
       });
@@ -1452,6 +1452,15 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
       setMapError(err.message || "Map failed to load");
     }
   }, []);
+
+  // Fly to mapState when it changes from shared URL
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    if (mapState.lat && mapState.lng) {
+      map.flyTo({ center: [mapState.lng, mapState.lat], zoom: mapState.zoom || map.getZoom(), duration: 800 });
+    }
+  }, [mapState, mapReady]);
 
   const removeLayerSafe = useCallback((map, layerId, sourceId) => {
     try {
@@ -1487,7 +1496,7 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
         paint: { "line-color": routeColors[route], "line-width": 3.5, "line-opacity": 0.85 },
       });
     });
-  }, [polylines, visibleRoutes, trackedRoutes, routeColors, removeLayerSafe, mapReady]);
+  }, [polylines, visibleRoutes, trackedRoutes, removeLayerSafe, mapReady]);
 
   // Heatmap
   useEffect(() => {
@@ -1537,21 +1546,25 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    Object.keys(markersRef.current).forEach((key) => {
-      if (key.startsWith("stop-")) {
-        markersRef.current[key].remove();
-        delete markersRef.current[key];
-      }
-    });
+    const currentStopKeys = new Set();
     trackedRoutes.forEach((route) => {
       if (!visibleRoutes.includes(route)) return;
       const routeStops = stops[route] || [];
       const color = routeColors[route] || "#888";
       routeStops.forEach((stop) => {
         if (stop.lat == null || stop.lon == null) return;
+        const key = `stop-${route}-${stop.id}`;
+        currentStopKeys.add(key);
+        // Update existing marker color instead of recreating
+        const existing = markersRef.current[key];
+        if (existing) {
+          const el = existing.getElement();
+          el.style.background = color;
+          return;
+        }
         const el = document.createElement("div");
         el.className = "stop-marker";
-        el.style.cssText = `width:7px;height:7px;border-radius:50%;background:${color};border:1.5px solid rgba(255,255,255,0.8);cursor:pointer;transition:box-shadow 0.15s,opacity 0.15s;transform-origin:center center;`;
+        el.style.cssText = `width:10px;height:10px;border-radius:50%;background:${color};border:1.5px solid rgba(255,255,255,0.8);cursor:pointer;transition:box-shadow 0.15s,opacity 0.15s;transform-origin:center center;padding:8px;background-clip:content;box-sizing:border-box;`;
         el.addEventListener("mouseenter", () => {
           el.style.boxShadow = `0 0 0 3px ${color}80`;
           el.style.opacity = "1";
@@ -1610,6 +1623,13 @@ function BusMap({ vehicles, polylines, stops, visibleRoutes, trackedRoutes, rout
         const marker = new mapboxgl.Marker(el).setLngLat([stop.lon, stop.lat]).addTo(map);
         markersRef.current[`stop-${route}-${stop.id}`] = marker;
       });
+    });
+    // Remove stale markers for stops no longer tracked
+    Object.keys(markersRef.current).forEach((key) => {
+      if (key.startsWith("stop-") && !currentStopKeys.has(key)) {
+        markersRef.current[key].remove();
+        delete markersRef.current[key];
+      }
     });
   }, [stops, visibleRoutes, trackedRoutes, routeColors, mapReady]);
 
@@ -1856,8 +1876,17 @@ export default function App() {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const [fetchError, setFetchError] = useState(null);
   const [activeRoute, setActiveRoute] = useState("ALL");
   const [visibleRoutes, setVisibleRoutes] = useState([...trackedRoutes]);
+
+  // Sync visibleRoutes when trackedRoutes changes (e.g. from URL hash)
+  useEffect(() => {
+    setVisibleRoutes(prev => {
+      const merged = [...new Set([...prev, ...trackedRoutes])];
+      return merged;
+    });
+  }, [trackedRoutes]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [showSearch, setShowSearch] = useState(false);
@@ -2006,10 +2035,12 @@ export default function App() {
   // Feature 9: Snapshot departures every 60s
   const routeColorsRef = useRef(routeColors);
   useEffect(() => { routeColorsRef.current = routeColors; }, [routeColors]);
+  const stopsRef = useRef(stops);
+  stopsRef.current = stops;
   useEffect(() => {
     const interval = setInterval(() => {
       const allArrivals = [];
-      stops.forEach(s => (s.arrivals || []).forEach(a => allArrivals.push(a)));
+      stopsRef.current.forEach(s => (s.arrivals || []).forEach(a => allArrivals.push(a)));
       if (allArrivals.length === 0) return;
       const snap = { ts: Date.now(), arrivals: allArrivals.slice(0, 20), routeColors: { ...routeColorsRef.current } };
       setPastSnapshots(prev => {
@@ -2019,7 +2050,7 @@ export default function App() {
       });
     }, 60000);
     return () => clearInterval(interval);
-  }, [stops]);
+  }, []);
 
   const toggleRoute = (route) => {
     setVisibleRoutes((prev) =>
@@ -2347,8 +2378,10 @@ export default function App() {
       setStops(stopsData.stops || []);
       setVehicles(vehiclesData.vehicles || []);
       setLastRefresh(new Date());
+      setFetchError(null);
     } catch (err) {
       console.error("Fetch failed:", err);
+      setFetchError("Unable to fetch bus data. Retrying...");
     } finally {
       setLoading(false);
     }
@@ -2443,6 +2476,7 @@ export default function App() {
           <div className="refresh-info">
             {lastRefresh && <>Updated {lastRefresh.toLocaleTimeString()}</>}
           </div>
+          {fetchError && <div className="error-banner" style={{ color: "#ef4444", fontSize: "0.75rem", marginLeft: "0.5rem" }}>{fetchError}</div>}
           <SoundToggle enabled={soundEnabled} onToggle={() => setSoundEnabled(!soundEnabled)} />
           <RouteCompare trackedRoutes={trackedRoutes} routeColors={routeColors} vehicles={vehicles} stops={stops} />
           <SavedViews onLoad={handleLoadView} currentRoutes={trackedRoutes} mapState={mapState} />
@@ -2516,6 +2550,7 @@ export default function App() {
           routeColors={routeColors}
           heatmapEnabled={heatmapEnabled}
           onMapMove={setMapState}
+          mapState={mapState}
         />
         <div className="map-legend">
           <span className="legend-item"><span className="legend-dot" style={{ background: "#22c55e" }} /> Fast</span>
@@ -2528,7 +2563,7 @@ export default function App() {
       </div>
 
       {/* Mobile tabs */}
-      <div className="mobile-tabs">
+      <div className="mobile-tabs" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
         <button className={`mobile-tab ${mobileSheet === "arrivals" ? "active" : ""}`} onClick={() => setMobileSheet("arrivals")}>Arrivals</button>
         <button className={`mobile-tab ${mobileSheet === "departure" ? "active" : ""}`} onClick={() => setMobileSheet("departure")}>Board</button>
         <button className={`mobile-tab ${mobileSheet === "alerts" ? "active" : ""}`} onClick={() => setMobileSheet("alerts")}>Alerts ({filteredAlerts.length})</button>
