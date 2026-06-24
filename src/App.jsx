@@ -918,9 +918,17 @@ function SystemStats({ vehicles, stops, alerts, trackedRoutes }) {
   const routeAlerts = useMemo(() => alerts.filter(a => a.routes?.some(r => trackedRoutes.includes(r))), [alerts, trackedRoutes]);
   const totalBuses = routeVehicles.length;
   const totalStops = (Array.isArray(stops) ? stops : []).length;
-  const delayedBuses = routeVehicles.filter(v => v.progressRate === "delayed").length;
+  const delayedBuses = routeVehicles.filter(v => {
+    const rate = v.progressRate;
+    if (rate === "delayed" || rate === "lateProgress" || rate === "deviation") return true;
+    if (Array.isArray(v.progressStatus) && v.progressStatus.some(s => /late|delay/i.test(s))) return true;
+    return false;
+  }).length;
   const fullBuses = routeVehicles.filter(v => v.occupancy === "full").length;
-  const onTime = routeVehicles.filter(v => v.progressRate === "in progress" || v.progressRate === "normalProgress" || v.progressRate === "unknown").length;
+  const onTime = routeVehicles.filter(v => {
+    const rate = v.progressRate;
+    return rate === "inProgress" || rate === "in progress" || rate === "normalProgress" || rate === "stoppedAt" || rate === "unknown";
+  }).length;
   const onTimePct = totalBuses > 0 ? Math.round(onTime / totalBuses * 100) : 100;
 
   return (
