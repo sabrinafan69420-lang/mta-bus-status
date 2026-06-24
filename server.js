@@ -4,6 +4,7 @@ import protobuf from "gtfs-realtime-bindings";
 import polyline from "@mapbox/polyline";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { FAVORITES as SHARED_FAVORITES, DEFAULT_ROUTES } from "./api/lib.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -13,16 +14,8 @@ const API_KEY = process.env.MTA_BUSTIME_KEY || "";
 const SIRI_BASE = "https://bustime-classic.mta.info/api";
 const ALERTS_URL = `https://gtfsrt.prod.obanyc.com/alerts?key=${API_KEY}`;
 
-const FAVORITES = [
-  { stopId: "300833", name: "AVENUE D/NOSTRAND AV", route: "B8" },
-  { stopId: "308313", name: "ROCKAWAY AV/HEGEMAN AV", route: "B8" },
-  { stopId: "301128", name: "E 98 ST/CHURCH AV", route: "B15" },
-  { stopId: "301034", name: "FOUNTAIN AV/LINDEN BLVD", route: "B15" },
-  { stopId: "300590", name: "Cozine Av/Ashford St", route: "B6" },
-  { stopId: "300541", name: "Glenwood RD/Nostrand Av", route: "B6" },
-];
-
-const TRACKED_ROUTES = ["B6", "B8", "B15"];
+const FAVORITES = SHARED_FAVORITES;
+const TRACKED_ROUTES = DEFAULT_ROUTES;
 
 // --- CORS ---
 app.use((req, res, next) => {
@@ -246,6 +239,9 @@ app.get("/api/alerts", async (req, res) => {
 app.get("/api/arrivals/:stopId", async (req, res) => {
   try {
     const { stopId } = req.params;
+    if (!/^\d+$/.test(stopId)) {
+      return res.status(400).json({ error: "Invalid stop ID" });
+    }
     const { route } = req.query;
     const data = await fetchArrivals(stopId, route);
     res.json(data);

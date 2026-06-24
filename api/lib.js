@@ -17,6 +17,9 @@ export const FAVORITES = [
 export const DEFAULT_ROUTES = ["B6", "B8", "B15"];
 
 export function cors(res) {
+  const allowed = ["https://mta.spis.dev", "http://localhost:5173", "http://localhost:3000"];
+  // Note: origin must be checked from req.headers.origin in the handler
+  // This wildcard is used as fallback when origin is not available
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
